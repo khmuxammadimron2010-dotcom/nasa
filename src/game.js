@@ -24,19 +24,35 @@ const NEAR = 2;             // high-detail ring
 const WORLD = 5000;         // half-size of the playable map (10 km x 10 km)
 const DOOR = { x: 0, z: 19 };
 const LAB_RADIUS = 30;
+// stations inside the base
+const MED = { x: -6.6, z: 1.5 };      // medical bay (H)
+const STORE = { x: 7.0, z: 1.5 };     // sample storage (E)
+const WORKSHOP = { x: 0, z: -7.4 };   // rover workshop (R)
+const DOME_IN = 9.4, DOME_OUT = 10.9; // dome wall (ring) — open at the doorway on +z
+const DOOR_HALF = 1.5;                // half width of the doorway
+function inBuilding(x, z) { return Math.hypot(x, z) < DOME_IN || (Math.abs(x) < 2.9 && z > 9.0 && z < 16.9); }
 // solid parts of the base (ground plan): circles [x, z, r] and boxes [x0, z0, x1, z1]
-const LAB_CIRCLES = [[0, 0, 10.9], [20, 18, 2.3], [-14, 22, 0.6], [8, 22, 0.4]];
+const LAB_CIRCLES = [[0, 0, 1.5], [20, 18, 2.3], [-14, 22, 0.6], [8, 22, 0.4]];
 for (let i = 0; i < 8; i++) { const a = (i + 0.5) / 8 * Math.PI * 2; LAB_CIRCLES.push([Math.sin(a) * 27, Math.cos(a) * 27, 0.35]); }   // lamp posts
 const LAB_BOXES = [
   [10.5, -3.4, 25.8, 3.4], [-25.8, -3.4, -10.5, 3.4], [-3.4, -25.8, 3.4, -10.5],   // side modules + tubes
-  [-3.3, 9.7, 3.3, 17.0],                                                           // airlock
+  [2.9, 9.3, 3.3, 16.9], [-3.3, 9.3, -2.9, 16.9],                                   // airlock side walls
+  [DOOR_HALF, 16.5, 3.3, 16.9], [-3.3, 16.5, -DOOR_HALF, 16.9],                     // airlock front wall (doorway between)
   [31, -13, 45, 13],                                                                // solar farm
-  [-9.4, 18.2, -6.8, 21.8]                                                          // cargo crates
+  [-9.4, 18.2, -6.8, 21.8],                                                         // cargo crates
+  [-7.4, -0.1, -5.8, 3.1], [6.5, -0.3, 7.5, 3.3], [-1.7, -8.4, 1.7, -7.4]           // medical bay, storage, workshop
 ];
 // deepest contact of a circle (px, pz, rad) with the base, or null
 function labContact(px, pz, rad) {
   if (px * px + pz * pz > 60 * 60) return null;
   let best = null;
+  // dome wall: a ring that is open at the doorway (+z) for anything that fits through
+  const rr = Math.hypot(px, pz);
+  if (rr > DOME_IN - rad && rr < DOME_OUT + rad && !(pz > 0 && Math.abs(px) <= DOOR_HALF - rad)) {
+    const mid = (DOME_IN + DOME_OUT) / 2;
+    const c = rr <= mid ? { nx: -px / (rr || 1), nz: -pz / (rr || 1), pen: rr + rad - DOME_IN } : { nx: px / rr, nz: pz / rr, pen: DOME_OUT + rad - rr };
+    if (c.pen > 0) best = c;
+  }
   for (const [cx, cz, r] of LAB_CIRCLES) {
     const dx = px - cx, dz = pz - cz, d = Math.hypot(dx, dz), pen = r + rad - d;
     if (pen > 0 && (!best || pen > best.pen)) best = d > 1e-4 ? { nx: dx / d, nz: dz / d, pen } : { nx: 1, nz: 0, pen };
@@ -84,8 +100,8 @@ const T = {
     helpTitle: 'MOON MISSION',
     help: ['W / S — walk or drive forward / back', 'A / D — turn left / right',
       'Space — jump · Shift — run · B — brake', 'E — interact (rover, rocks, lab)',
-      'C — switch 3rd / 1st person view', 'H — heal · R — repair rover (at the lab, costs money)', 'Drag the mouse — look around · Wheel — zoom', 'Esc — pause'],
-    helpGoal: 'Drive to the glowing craters, collect rock samples, load them into the rover and store 12 samples in the lab. The sun’s radiation hurts you outside, and oxygen and energy run down — return to the lab to recover. Stones damage the rover. Samples earn money — spend it at the lab to heal yourself (H) and repair the rover (R).',
+      'C — switch 3rd / 1st person view', 'Inside the base: H — medical bay · R — workshop · E — storage (costs money)', 'Drag the mouse — look around · Wheel — zoom', 'Esc — pause'],
+    helpGoal: 'Drive to the glowing craters, collect rock samples, load them into the rover and store 12 samples in the lab. The sun’s radiation hurts you outside, and oxygen and energy run down — return to the lab to recover. Stones damage the rover. Go through the airlock into the base: store samples at the storage rack (E), earn money, and spend it at the medical bay (H) and the workshop (R).',
     begin: 'BEGIN MISSION', loading: 'Generating the Moon…',
     paused: 'PAUSED', resume: 'RESUME', quit: 'BACK TO LEVELS',
     winT: 'Discovery complete!', winD: '{d} You delivered {n} samples in {t}.',
@@ -119,8 +135,8 @@ const T = {
     helpTitle: 'OY MISSIYASI',
     help: ['W / S — oldinga / orqaga yurish yoki haydash', 'A / D — chapga / o‘ngga burilish',
       'Space — sakrash · Shift — yugurish · B — tormoz', 'E — o‘zaro ta’sir (rover, toshlar, laboratoriya)',
-      'C — ko‘rinish: 3-shaxs / 1-shaxs', 'H — davolanish · R — rover ta’miri (laboratoriyada, pul kerak)', 'Sichqonchani sudrang — atrofga qarash · G‘ildirak — yaqinlashtirish', 'Esc — pauza'],
-    helpGoal: 'Yonib turgan kraterlarga boring, tosh namunalarini yig‘ing, roverga yuklang va laboratoriyaga 12 ta namuna yetkazing. Tashqarida quyosh radiatsiyasi zarar qiladi, kislorod va energiya kamayadi — tiklanish uchun laboratoriyaga qayting. Toshlar roverga zarar yetkazadi. Namunalar pul keltiradi — uni laboratoriyada davolanish (H) va roverni ta’mirlash (R) uchun sarflang.',
+      'C — ko‘rinish: 3-shaxs / 1-shaxs', 'Bazada: H — tibbiyot · R — ustaxona · E — ombor (pul kerak)', 'Sichqonchani sudrang — atrofga qarash · G‘ildirak — yaqinlashtirish', 'Esc — pauza'],
+    helpGoal: 'Yonib turgan kraterlarga boring, tosh namunalarini yig‘ing, roverga yuklang va laboratoriyaga 12 ta namuna yetkazing. Tashqarida quyosh radiatsiyasi zarar qiladi, kislorod va energiya kamayadi — tiklanish uchun laboratoriyaga qayting. Toshlar roverga zarar yetkazadi. Shlyuz orqali bazaga kiring: namunalarni omborga (E) qo‘ying, pul ishlang va uni tibbiyot xonasi (H) hamda ustaxona (R) uchun sarflang.',
     begin: 'MISSIYANI BOSHLASH', loading: 'Oy yaratilmoqda…',
     paused: 'PAUZA', resume: 'DAVOM ETISH', quit: 'BOSQICHLARGA QAYTISH',
     winT: 'Kashfiyot yakunlandi!', winD: '{d} Siz {t} ichida {n} ta namuna yetkazdingiz.',
@@ -154,8 +170,8 @@ const T = {
     helpTitle: 'ЛУННАЯ МИССИЯ',
     help: ['W / S — идти или ехать вперёд / назад', 'A / D — поворот влево / вправо',
       'Пробел — прыжок · Shift — бег · B — тормоз', 'E — действие (ровер, камни, лаборатория)',
-      'C — вид от 3-го / 1-го лица', 'H — лечение · R — ремонт ровера (в лаборатории, за деньги)', 'Перетаскивайте мышь — осмотр · Колесо — масштаб', 'Esc — пауза'],
-    helpGoal: 'Езжайте к светящимся кратерам, собирайте образцы породы, грузите их в ровер и сдайте 12 образцов в лабораторию. Снаружи солнечная радиация вредит здоровью, а кислород и энергия убывают — для восстановления возвращайтесь в лабораторию. Камни повреждают ровер. Образцы приносят деньги — тратьте их в лаборатории на лечение (H) и ремонт ровера (R).',
+      'C — вид от 3-го / 1-го лица', 'В базе: H — медотсек · R — мастерская · E — склад (за деньги)', 'Перетаскивайте мышь — осмотр · Колесо — масштаб', 'Esc — пауза'],
+    helpGoal: 'Езжайте к светящимся кратерам, собирайте образцы породы, грузите их в ровер и сдайте 12 образцов в лабораторию. Снаружи солнечная радиация вредит здоровью, а кислород и энергия убывают — для восстановления возвращайтесь в лабораторию. Камни повреждают ровер. Пройдите через шлюз в базу: сдавайте образцы на склад (E), зарабатывайте деньги и тратьте их в медотсеке (H) и мастерской (R).',
     begin: 'НАЧАТЬ МИССИЮ', loading: 'Создаём Луну…',
     paused: 'ПАУЗА', resume: 'ПРОДОЛЖИТЬ', quit: 'К УРОВНЯМ',
     winT: 'Открытие совершено!', winD: '{d} Вы доставили образцов: {n}, время: {t}.',
@@ -414,9 +430,23 @@ function makeRover() {
 
 function makeLab() {
   const g = new THREE.Group();
-  const dome = mesh(new THREE.SphereGeometry(10, 36, 18, 0, Math.PI * 2, 0, Math.PI / 2), M.white, 0, 1.2, 0);
-  g.add(dome);
-  g.add(mesh(new THREE.CylinderGeometry(10.4, 10.8, 1.4, 36), M.grey, 0, 0.7, 0));
+  // hollow dome with a doorway on +z (the airlock leads into it)
+  const GAP = 0.36, GAPC = Math.PI / 2;
+  const domeMat = M.white.clone(); domeMat.side = THREE.DoubleSide;
+  const dome = mesh(new THREE.SphereGeometry(10, 40, 18, GAPC + GAP / 2, Math.PI * 2 - GAP, 0, Math.PI / 2), domeMat, 0, 1.2, 0); dome.receiveShadow = false;
+  const arch = mesh(new THREE.SphereGeometry(10, 8, 4, GAPC - GAP / 2, GAP, 0, 1.35), domeMat, 0, 1.2, 0); arch.receiveShadow = false;
+  g.add(dome, arch);
+  const ringMat = M.grey.clone(); ringMat.side = THREE.DoubleSide;
+  g.add(mesh(new THREE.CylinderGeometry(10.4, 10.8, 1.4, 40, 1, true, GAP / 2, Math.PI * 2 - GAP), ringMat, 0, 0.7, 0, false));
+  // floors
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x59616f, roughness: 0.65, metalness: 0.3 });
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(10.3, 48), floorMat); floor.rotation.x = -Math.PI / 2; floor.position.y = 0.1; floor.receiveShadow = true; g.add(floor);
+  const floor2 = new THREE.Mesh(new THREE.PlaneGeometry(5.8, 7.6), floorMat); floor2.rotation.x = -Math.PI / 2; floor2.position.set(0, 0.1, 13.1); floor2.receiveShadow = true; g.add(floor2);
+  [[4.4, 0.18], [8.6, 0.12]].forEach(([r, w]) => { const m = new THREE.Mesh(new THREE.RingGeometry(r - w, r, 64), new THREE.MeshBasicMaterial({ color: 0xff7a2f, side: THREE.DoubleSide })); m.rotation.x = -Math.PI / 2; m.position.y = 0.12; g.add(m); });
+  // interior lighting
+  const l1 = new THREE.PointLight(0xfff0dc, 150, 28, 1.8); l1.position.set(0, 8.5, 0); g.add(l1);
+  const l2 = new THREE.PointLight(0xdff3ff, 60, 14, 1.8); l2.position.set(0, 3.8, 13.1); g.add(l2);
+  const lamp = new THREE.Mesh(new THREE.TorusGeometry(3.8, 0.12, 8, 40), new THREE.MeshBasicMaterial({ color: 0xfff3d0 })); lamp.rotation.x = Math.PI / 2; lamp.position.y = 10.3; g.add(lamp);
   // windows ring
   for (let i = 0; i < 12; i++) {
     const a = i / 12 * Math.PI * 2;
@@ -434,12 +464,44 @@ function makeLab() {
     const stripe = mesh(new THREE.CylinderGeometry(3.45, 3.45, 1.2, 20), M.orange, dx * 17, 3.5, dz * 17);
     stripe.rotation.z = Math.PI / 2; stripe.rotation.y = dz ? Math.PI / 2 : 0; g.add(stripe);
   });
-  // airlock
-  g.add(mesh(new THREE.BoxGeometry(6.4, 4.6, 7), M.white, 0, 2.3, 13.2));
-  g.add(mesh(new THREE.BoxGeometry(6.6, 0.4, 7.2), M.orange, 0, 4.7, 13.2));
-  const door = mesh(new THREE.BoxGeometry(3.0, 3.6, 0.25), M.dark, 0, 1.9, 16.8);
+  // airlock: a hollow room with a sliding door
+  [-3.1, 3.1].forEach(x => g.add(mesh(new THREE.BoxGeometry(0.4, 4.6, 7.6), M.white, x, 2.3, 13.1)));
+  [-2.4, 2.4].forEach(x => g.add(mesh(new THREE.BoxGeometry(1.8, 4.6, 0.4), M.white, x, 2.3, 16.7)));
+  g.add(mesh(new THREE.BoxGeometry(3.0, 1.9, 0.4), M.white, 0, 3.65, 16.7));                    // lintel above the door
+  g.add(mesh(new THREE.BoxGeometry(6.6, 0.3, 7.8), M.white, 0, 4.45, 13.1));                    // roof
+  g.add(mesh(new THREE.BoxGeometry(6.8, 0.2, 7.9), M.orange, 0, 4.7, 13.1));
+  [-1.55, 1.55].forEach(x => g.add(mesh(new THREE.BoxGeometry(0.12, 2.7, 0.55), M.orange, x, 1.35, 16.7)));
+  g.add(mesh(new THREE.BoxGeometry(3.0, 0.15, 0.15), M.win, 0, 3.2, 16.95, false));
+  g.add(mesh(new THREE.BoxGeometry(2.0, 0.1, 0.5), M.win, 0, 4.25, 13.1, false));
+  const door = mesh(new THREE.BoxGeometry(2.96, 2.6, 0.2), M.dark, 0, 1.4, 16.7);
   g.add(door);
-  g.add(mesh(new THREE.BoxGeometry(3.4, 0.3, 0.5), M.win, 0, 4.05, 16.9, false));
+  // ---- interior: hologram table, medical bay, storage, workshop
+  const mk = (w, h, d, m, x, y, z, ry = 0) => { const o = mesh(new THREE.BoxGeometry(w, h, d), m, x, y, z); o.rotation.y = ry; g.add(o); return o; };
+  const sign = (text, color, x, y, z, ry, w = 2.6) => {
+    const c = document.createElement('canvas'); c.width = 320; c.height = 80; const k = c.getContext('2d');
+    k.fillStyle = '#0c1628'; k.fillRect(0, 0, 320, 80); k.strokeStyle = color; k.lineWidth = 5; k.strokeRect(3, 3, 314, 74);
+    k.fillStyle = color; k.font = '700 40px sans-serif'; k.textAlign = 'center'; k.textBaseline = 'middle'; k.fillText(text, 160, 42);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(w, w / 4), new THREE.MeshBasicMaterial({ map: t })); p.position.set(x, y, z); p.rotation.y = ry; g.add(p);
+  };
+  const holoMat = new THREE.MeshBasicMaterial({ color: 0x66e6ff, transparent: true, opacity: 0.55 });
+  g.add(mesh(new THREE.CylinderGeometry(1.3, 1.5, 0.9, 28), M.dark, 0, 0.55, 0));
+  g.add(mesh(new THREE.CylinderGeometry(1.2, 1.2, 0.06, 28), holoMat, 0, 1.03, 0, false));
+  const holo = mesh(new THREE.SphereGeometry(0.6, 22, 14), M.sample, 0, 1.9, 0, false); g.add(holo);
+  // medical bay (west)
+  mk(1.6, 0.55, 3.2, M.white, MED.x, 0.4, MED.z); mk(1.4, 0.18, 3.0, M.grey, MED.x, 0.74, MED.z);
+  mk(0.2, 2.4, 3.6, M.white, -8.5, 1.3, MED.z);
+  mk(0.06, 0.3, 1.1, new THREE.MeshBasicMaterial({ color: 0x5dffa0 }), -8.38, 1.7, MED.z); mk(0.06, 1.1, 0.3, new THREE.MeshBasicMaterial({ color: 0x5dffa0 }), -8.38, 1.7, MED.z);
+  sign('MEDICAL  H', '#5dffa0', -8.38, 2.7, MED.z, Math.PI / 2);
+  // storage rack (east)
+  mk(1.0, 2.4, 3.6, M.dark, STORE.x + 0.2, 1.3, STORE.z);
+  [0.7, 1.4, 2.1].forEach(y => mk(0.06, 0.1, 3.3, new THREE.MeshBasicMaterial({ color: 0x66e6ff }), STORE.x - 0.31, y, STORE.z));
+  [[0.45, -1.1], [0.45, 0.2], [1.15, -0.5], [1.15, 1.0], [1.85, 0.2]].forEach(([y, dz], i) => mk(0.4, 0.4, 0.55, i % 2 ? M.orange : M.grey, STORE.x - 0.4, y, STORE.z + dz));
+  sign('STORAGE  E', '#66e6ff', STORE.x - 0.33, 2.9, STORE.z, -Math.PI / 2);
+  // workshop (north wall)
+  mk(3.2, 1.0, 0.9, M.dark, WORKSHOP.x, 0.6, WORKSHOP.z - 0.5); mk(3.4, 2.2, 0.2, M.grey, 0, 1.2, -8.55);
+  mk(2.6, 0.9, 0.06, new THREE.MeshBasicMaterial({ color: 0x66e6ff, transparent: true, opacity: 0.7 }), 0, 1.7, -8.4);
+  sign('WORKSHOP  R', '#ffb54d', 0, 2.9, -8.4, 0);
   // solar farm
   for (let r = 0; r < 2; r++) for (let i = -2; i <= 2; i++) {
     const p = mesh(new THREE.BoxGeometry(6, 0.18, 3.4), M.solar, 34 + r * 7, 2.2, i * 5.2);
@@ -489,9 +551,9 @@ function makeLab() {
     x.fillStyle = '#0c1628'; x.fillRect(0, 0, 512, 96); x.strokeStyle = '#ff7a2f'; x.lineWidth = 6; x.strokeRect(4, 4, 504, 88);
     x.fillStyle = '#9fe9ff'; x.font = '700 54px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('MOON BASE', 256, 52);
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-    g.add(mesh(new THREE.BoxGeometry(6.2, 1.2, 0.2), M.dark, 0, 5.6, 15.6));
+    g.add(mesh(new THREE.BoxGeometry(6.2, 1.2, 0.2), M.dark, 0, 5.45, 15.6));
     const sg = new THREE.Mesh(new THREE.PlaneGeometry(5.9, 1.1), new THREE.MeshBasicMaterial({ map: t }));
-    sg.position.set(0, 5.6, 15.71); g.add(sg); }
+    sg.position.set(0, 5.45, 15.71); g.add(sg); }
   // cargo crates
   [[-8.6, 19.0, 1.5, M.orange], [-7.7, 21.0, 1.5, M.grey], [-8.2, 20.0, 1.2, M.grey]].forEach(([x, z, sz, m], i) => {
     const cr = mesh(new THREE.BoxGeometry(sz, sz, sz), m, x, sz / 2 + (i === 2 ? 1.5 : 0), z); cr.rotation.y = i * 0.5; g.add(cr);
@@ -505,7 +567,7 @@ function makeLab() {
   const beam = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 160, 12, 1, true),
     new THREE.MeshBasicMaterial({ color: 0x55dfff, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
   beam.position.y = 80; g.add(beam);
-  return { group: g, door };
+  return { group: g, door, holo };
 }
 
 // ----------------------------------------------------------------- audio
@@ -831,7 +893,7 @@ function createGame(opts) {
     car: { x: 24, z: 40, yaw: 0.5, v: 0, steer: 0, y: 0, pitch: 0, roll: 0, h: 0, vh: 0, air: false },
     hp: 100, o2: 100, en: 100, rv: 100, money: START_MONEY, svc: { heal: false, repair: false }, svcT: 0, hitT: 0, hitUntil: 0, lastDmg: 0, shake: 0, smokeT: 0, rad: 0, carried: 0, cargo: 0, delivered: 0,
     action: null, flare: { next: 70, warn: false, on: false, t: 0 }, shade: false, shadeT: 0, hurtT: 0,
-    view: 'third', viewUntil: 0, inBase: true, autoFP: false,
+    view: 'third', viewUntil: 0, inBase: false, autoFP: false,
     cam: { yaw: 0, yawOff: 0, pitchOff: 0, fpPitch: 0, zoom: 1, idle: 0, x: 0, y: 3, z: -8 },
     lastBeepO2: 0, lastRefill: false, doorOpen: 0, toast: 0
   };
@@ -901,11 +963,11 @@ function createGame(opts) {
   function toggleService(kind) {
     if (S.paused || S.over) return;
     if (kind === 'heal') {
-      if (!S.inLab || S.hp >= 99.5) return;
+      if (!nearMed() || S.hp >= 99.5) return;
       if (S.money < 1) { flash(tr('f_broke')); return; }
       S.svc.heal = !S.svc.heal;
     } else {
-      if (Math.hypot(S.car.x, S.car.z) >= LAB_RADIUS || S.rv >= 99.5) return;
+      if (!roverAtBase() || !nearWorkshop() || S.rv >= 99.5) return;
       if (S.money < 1) { flash(tr('f_broke')); return; }
       S.svc.repair = !S.svc.repair;
     }
@@ -982,6 +1044,9 @@ function createGame(opts) {
   }
 
   // ---------- interaction
+  const roverAtBase = () => Math.hypot(S.car.x, S.car.z) < LAB_RADIUS;
+  const nearMed = () => S.mode === 'foot' && distTo(MED, S.foot.x, S.foot.z) < 5.5;
+  const nearWorkshop = () => S.mode === 'foot' && distTo(WORKSHOP, S.foot.x, S.foot.z) < 5.5;
   function context() {
     // returns what E would do right now
     if (S.action) return null;
@@ -992,7 +1057,7 @@ function createGame(opts) {
     if (nr && nr.d < 3.4 && S.carried < CAP_FOOT) return { type: 'collect', rock: nr.r, text: tr('p_collect') };
     const dRover = distTo(c, f.x, f.z);
     if (S.carried > 0 && dRover < 7 && S.cargo < CAP_CARGO) return { type: 'load', text: tr('p_load') };
-    if ((S.cargo > 0 || S.carried > 0) && distTo(DOOR, f.x, f.z) < 9) return { type: 'store', text: tr('p_store') };
+    if ((S.carried > 0 || (S.cargo > 0 && roverAtBase())) && distTo(STORE, f.x, f.z) < 5.5) return { type: 'store', text: tr('p_store') };
     if (dRover < 6) return { type: 'enter', text: tr('p_enter') };
     return null;
   }
@@ -1022,7 +1087,7 @@ function createGame(opts) {
     } else if (a.type === 'load') {
       const n = Math.min(S.carried, CAP_CARGO - S.cargo); S.carried -= n; S.cargo += n; sfx.pick();
     } else if (a.type === 'store') {
-      const n = S.cargo + S.carried; S.delivered += n; S.cargo = 0; S.carried = 0; sfx.chime();
+      const n = S.carried + (roverAtBase() ? S.cargo : 0); S.delivered += n; S.carried = 0; if (roverAtBase()) S.cargo = 0; sfx.chime();
       S.money += n * REWARD; flash(tr('f_earn', { m: n * REWARD }));
       if (S.delivered >= GOAL) win();
     }
@@ -1165,13 +1230,13 @@ function createGame(opts) {
     S.svcT -= dt;
     if (S.svc.heal) {
       const d = Math.min(8 * dt, 100 - S.hp, S.money / HEAL_COST);
-      if (!inLab || S.hp >= 99.99) S.svc.heal = false;
+      if (!nearMed() || S.hp >= 99.99) S.svc.heal = false;
       else if (d <= 1e-4) { S.svc.heal = false; flash(tr('f_broke')); }
       else { S.hp += d; S.money -= d * HEAL_COST; if (S.svcT <= 0) { sfx.beep(900, 0.04, 'sine', 0.05); S.svcT = 0.22; } }
     }
     if (S.svc.repair) {
       const d = Math.min(12 * dt, 100 - S.rv, S.money / REPAIR_COST);
-      if (!carInLab || S.rv >= 99.99) S.svc.repair = false;
+      if (!roverAtBase() || !nearWorkshop() || S.rv >= 99.99) S.svc.repair = false;
       else if (d <= 1e-4) { S.svc.repair = false; flash(tr('f_broke')); }
       else { S.rv += d; S.money -= d * REPAIR_COST; if (S.svcT <= 0) { sfx.beep(520, 0.04, 'square', 0.04); S.svcT = 0.22; } }
     }
@@ -1179,8 +1244,9 @@ function createGame(opts) {
 
     // lab door
     const dDoor = Math.hypot(S.foot.x - DOOR.x, S.foot.z - DOOR.z), dCar = Math.hypot(S.car.x - DOOR.x, S.car.z - DOOR.z);
-    S.doorOpen = lerp(S.doorOpen, (dDoor < 14 || dCar < 14) ? 1 : 0, 1 - Math.exp(-4 * dt));
-    lab.door.position.y = 1.9 + S.doorOpen * 3.4;
+    S.doorOpen = lerp(S.doorOpen, (dDoor < 8 || dCar < 8) ? 1 : 0, 1 - Math.exp(-4 * dt));
+    lab.door.position.y = 1.4 + S.doorOpen * 1.95;
+    lab.holo.rotation.y = S.t * 0.6; lab.holo.position.y = 1.9 + Math.sin(S.t * 1.5) * 0.08;
 
     // beeps
     S.lastBeepO2 -= dt;
@@ -1188,10 +1254,10 @@ function createGame(opts) {
 
     S.inLab = inLab;
 
-    // entering the base switches to first person; leaving it brings the old view back
-    const dBase = Math.hypot(pos.x, pos.z);
-    if (!S.inBase && dBase < LAB_RADIUS) { S.inBase = true; if (S.view === 'third') { setView('first'); S.autoFP = true; } }
-    else if (S.inBase && dBase > LAB_RADIUS + 4) { S.inBase = false; if (S.autoFP) { setView('third'); S.autoFP = false; } }
+    // going inside the base switches to first person; stepping out brings the old view back
+    const inside = S.mode === 'foot' && inBuilding(pos.x, pos.z);
+    if (!S.inBase && inside) { S.inBase = true; if (S.view === 'third') { setView('first'); S.autoFP = true; } }
+    else if (S.inBase && !inside) { S.inBase = false; if (S.autoFP) { setView('third'); S.autoFP = false; } }
   }
 
   // ---------- visuals
@@ -1308,10 +1374,11 @@ function createGame(opts) {
     }
     const nr = nearestRock(f.x, f.z);
     if (nr && nr.d < 120 && S.carried < CAP_FOOT) return { text: tr('obj_collect'), tx: nr.r.x, tz: nr.r.z, label: tr('tgt_rock') };
+    if (S.carried > 0 && roverAtBase() && Math.hypot(f.x, f.z) < 40) return { text: tr('obj_store'), tx: STORE.x, tz: STORE.z, label: tr('tgt_lab') };
     if (S.carried > 0) return { text: tr('obj_load'), tx: c.x, tz: c.z, label: tr('tgt_rover') };
     if (nr && nr.d < 260) return { text: tr('obj_collect'), tx: nr.r.x, tz: nr.r.z, label: tr('tgt_rock') };
     if (S.cargo > 0) {
-      if (distTo(c, DOOR.x, DOOR.z) < 70) return { text: tr('obj_store'), tx: DOOR.x, tz: DOOR.z, label: tr('tgt_lab') };
+      if (roverAtBase()) return { text: tr('obj_store'), tx: STORE.x, tz: STORE.z, label: tr('tgt_lab') };
       return { text: tr('obj_walkRover'), tx: c.x, tz: c.z, label: tr('tgt_rover') };
     }
     if (!farFromLab && S.t < 3) return { text: tr('obj_exitLab'), tx: c.x, tz: c.z, label: tr('tgt_rover') };
@@ -1395,8 +1462,8 @@ function createGame(opts) {
     msg.style.display = refilling ? 'block' : 'none'; msg.textContent = tr('m_refill');
     // paid services prompt
     const lines = [];
-    if (S.inLab && S.hp < 99.5) lines.push(S.svc.heal ? tr('s_healing') : tr('s_heal', { c: '$' + Math.ceil((100 - S.hp) * HEAL_COST) }));
-    if (carInLabNow() && S.rv < 99.5) lines.push(S.svc.repair ? tr('s_repairing') : tr('s_repair', { c: '$' + Math.ceil((100 - S.rv) * REPAIR_COST) }));
+    if (nearMed() && S.hp < 99.5) lines.push(S.svc.heal ? tr('s_healing') : tr('s_heal', { c: '$' + Math.ceil((100 - S.hp) * HEAL_COST) }));
+    if (nearWorkshop() && roverAtBase() && S.rv < 99.5) lines.push(S.svc.repair ? tr('s_repairing') : tr('s_repair', { c: '$' + Math.ceil((100 - S.rv) * REPAIR_COST) }));
     svc.innerHTML = lines.map(l => '<div>' + l + '</div>').join(''); svc.style.display = lines.length && !S.action ? 'block' : 'none';
     viewTag.style.opacity = performance.now() < S.viewUntil ? 1 : 0;
     vig.style.opacity = fl.on ? (0.55 + 0.25 * Math.sin(S.t * 6)) : 0;
