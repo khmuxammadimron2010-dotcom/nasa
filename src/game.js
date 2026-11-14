@@ -11,7 +11,8 @@ const GOAL = 12;            // samples to deliver
 const CAP_FOOT = 4;         // backpack capacity
 const JUMP_G = 5.0;        // stylised low gravity (m/s^2)
 const JUMP_FOOT = 4.7;     // astronaut take-off speed
-const JUMP_CAR = 4.3;      // rover take-off speed
+const JUMP_CAR = 5.0;      // rover take-off speed
+const JUMP_G_CAR = 9.0;    // the heavy rover falls faster than the astronaut
 const CAP_CARGO = 12;       // rover capacity
 const CS = 192;             // terrain chunk size (m)
 const RING = 8;             // chunks loaded around the player (view ~1.5 km)
@@ -438,7 +439,7 @@ class Sfx {
     const t = this.ctx.currentTime;
     this.eng.frequency.setTargetAtTime(38 + speedFrac * 70, t, 0.1);
     this.engF.frequency.setTargetAtTime(160 + speedFrac * 340, t, 0.1);
-    this.engG.gain.setTargetAtTime(on ? 0.16 + speedFrac * 0.24 : 0, t, 0.15);
+    this.engG.gain.setTargetAtTime(on ? 0.05 + speedFrac * 0.1 : 0, t, 0.15);
   }
   beep(f, d = 0.12, type = 'sine', g = 0.25, delay = 0) {
     if (!this.ok || this.ctx.state !== 'running') return;
@@ -817,7 +818,7 @@ function createGame(opts) {
     }
   }
   function land(o, strong) {
-    o.air = false; o.h = 0; const hard = Math.min(1, Math.abs(o.vh) / 5); o.vh = 0;
+    o.air = false; o.h = 0; const hard = Math.min(1, Math.abs(o.vh) / 7); o.vh = 0;
     puff(o.x, o.y, o.z, strong ? 12 : 8, 1.4 + hard * 2.2); sfx.beep(strong ? 90 : 130, 0.14, 'triangle', 0.18 * (0.5 + hard));
     return hard;
   }
@@ -943,7 +944,7 @@ function createGame(opts) {
       c.x = clamp(c.x + Math.sin(c.yaw) * c.v * dt, -WORLD, WORLD);
       c.z = clamp(c.z + Math.cos(c.yaw) * c.v * dt, -WORLD, WORLD);
       if (c.air) {
-        c.h += c.vh * dt; c.vh -= JUMP_G * dt;
+        c.h += c.vh * dt; c.vh -= JUMP_G_CAR * dt;
         if (c.h <= 0 && c.vh < 0) { const hard = land(c, true); c.v *= 1 - 0.12 * hard; if (hard > 0.7) S.en = Math.max(0, S.en - 0.6); }
       }
       sfx.drive(Math.abs(c.v) / 34 * (c.air ? 0.4 : 1), !empty || Math.abs(c.v) > 0.5);
