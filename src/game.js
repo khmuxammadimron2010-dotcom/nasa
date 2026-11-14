@@ -1303,10 +1303,25 @@ function createGame(opts) {
   const loadVoices = () => { try { voices = synth.getVoices(); } catch (e) { voices = []; } };
   if (synth) { loadVoices(); try { synth.addEventListener('voiceschanged', loadVoices); } catch (e) { /* ignore */ } }
   const VOICE_PREF = { en: ['en'], uz: ['uz', 'tr', 'ru'], ru: ['ru'] }, VOICE_TAG = { en: 'en-US', uz: 'uz-UZ', ru: 'ru-RU' };
+  // pick the most natural-sounding voice the browser has (neural / premium voices first, novelty voices never)
+  function voiceScore(v) {
+    const n = (v.name || '').toLowerCase(); let sc = 0;
+    if (/natural|neural/.test(n)) sc += 60;                 // Microsoft Edge neural voices (also Uzbek and Russian)
+    if (/premium/.test(n)) sc += 45;                         // macOS premium voices (Ava, Zoe, ...)
+    if (/enhanced/.test(n)) sc += 35;                        // macOS enhanced voices
+    if (/^google/.test(n)) sc += 30;                         // Chrome's Google voices
+    if (/online/.test(n)) sc += 10;
+    if (/samantha|milena|yelda|alex/.test(n)) sc += 8;       // good built-in Mac voices
+    if (/compact|espeak|eloquence/.test(n)) sc -= 40;
+    if (/albert|bad news|bahh|bells|boing|bubbles|cellos|deranged|good news|hysterical|jester|organ|superstar|trinoids|whisper|wobble|zarvox|fred|junior|ralph|kathy|grandma|grandpa|rocko|shelley|sandy|flo|eddy|reed/.test(n)) sc -= 100;
+    if (v.localService === false) sc += 4;
+    return sc;
+  }
   function pickVoice() {
-    // English narration: the Mac/iPhone voice "Samantha" (the classic Siri-style US voice), when the device has it
-    if (lang === 'en') { const sam = voices.find(x => /samantha/i.test(x.name || '') && (x.lang || '').toLowerCase().startsWith('en')); if (sam) return sam; }
-    for (const p of VOICE_PREF[lang]) { const v = voices.find(x => (x.lang || '').toLowerCase().replace('_', '-').startsWith(p)); if (v) return v; }
+    for (const p of VOICE_PREF[lang]) {
+      const cand = voices.filter(x => (x.lang || '').toLowerCase().replace('_', '-').startsWith(p));
+      if (cand.length) return cand.slice().sort((a, b) => voiceScore(b) - voiceScore(a))[0];
+    }
     return null;
   }
   function setReadBtn() { const b = ovHelp.querySelector('#rd'); if (b) b.textContent = speaking ? tr('stopRead') : tr('readAloud'); }
@@ -1318,13 +1333,17 @@ function createGame(opts) {
   function speakLines(lines, onLine) {
     if (!synth || voiceVol <= 0.001) return;
     stopSpeech(); const tok = spkTok; speaking = true; setReadBtn();
+    // speak sentence by sentence: sounds calmer and some online voices stop after ~15 s on long text
+    const parts = [];
+    lines.forEach((l, li) => String(l).replace(/<[^>]+>/g, '').split(/(?<=[.!?…])\s+/).forEach(t => { if (t.trim()) parts.push({ t: t.trim(), li }); }));
+    const v = pickVoice();
     const say = i => {
       if (tok !== spkTok) return;
-      if (i >= lines.length) { speaking = false; setReadBtn(); if (onLine) onLine(-1); return; }
-      const u = new SpeechSynthesisUtterance(String(lines[i]).replace(/<[^>]+>/g, ''));
-      const v = pickVoice(); if (v) { u.voice = v; u.lang = v.lang; } else u.lang = VOICE_TAG[lang];
-      u.rate = 0.92; u.pitch = v && /samantha/i.test(v.name || '') ? 1 : 1.05; u.volume = clamp(voiceVol * 1.3, 0, 1);
-      u.onstart = () => { if (tok === spkTok && onLine) onLine(i); };
+      if (i >= parts.length) { speaking = false; setReadBtn(); if (onLine) onLine(-1); return; }
+      const u = new SpeechSynthesisUtterance(parts[i].t);
+      if (v) { u.voice = v; u.lang = v.lang; } else u.lang = VOICE_TAG[lang];
+      u.rate = 0.95; u.pitch = 1; u.volume = clamp(voiceVol * 1.3, 0, 1);
+      u.onstart = () => { if (tok === spkTok && onLine && (i === 0 || parts[i - 1].li !== parts[i].li)) onLine(parts[i].li); };
       u.onend = () => say(i + 1);
       u.onerror = () => { if (tok === spkTok) say(i + 1); };
       synth.speak(u);
