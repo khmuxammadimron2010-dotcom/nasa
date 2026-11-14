@@ -25,11 +25,13 @@ const WORLD = 5000;         // half-size of the playable map (10 km x 10 km)
 const DOOR = { x: 0, z: 19 };
 const LAB_RADIUS = 30;
 // solid parts of the base (ground plan): circles [x, z, r] and boxes [x0, z0, x1, z1]
-const LAB_CIRCLES = [[0, 0, 10.9], [20, 18, 2.3], [-14, 22, 0.6]];
+const LAB_CIRCLES = [[0, 0, 10.9], [20, 18, 2.3], [-14, 22, 0.6], [8, 22, 0.4]];
+for (let i = 0; i < 8; i++) { const a = (i + 0.5) / 8 * Math.PI * 2; LAB_CIRCLES.push([Math.sin(a) * 27, Math.cos(a) * 27, 0.35]); }   // lamp posts
 const LAB_BOXES = [
   [10.5, -3.4, 25.8, 3.4], [-25.8, -3.4, -10.5, 3.4], [-3.4, -25.8, 3.4, -10.5],   // side modules + tubes
   [-3.3, 9.7, 3.3, 17.0],                                                           // airlock
-  [31, -13, 45, 13]                                                                 // solar farm
+  [31, -13, 45, 13],                                                                // solar farm
+  [-9.4, 18.2, -6.8, 21.8]                                                          // cargo crates
 ];
 // deepest contact of a circle (px, pz, rad) with the base, or null
 function labContact(px, pz, rad) {
@@ -456,6 +458,45 @@ function makeLab() {
     const a = i / 16 * Math.PI * 2;
     g.add(mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), M.win, Math.sin(a) * LAB_RADIUS, 0.25, Math.cos(a) * LAB_RADIUS, false));
   }
+  // ---- base upgrade: landing pad, ribbed dome, lamp posts, flag, sign, crates
+  const pad = mesh(new THREE.CylinderGeometry(27, 27, 0.06, 64), M.dark, 0, 0.03, 0, false); pad.receiveShadow = true; g.add(pad);
+  [[26.2, 0.5], [19, 0.3], [12.4, 0.3]].forEach(([r, w]) => {
+    const m = new THREE.Mesh(new THREE.RingGeometry(r - w, r, 64), new THREE.MeshBasicMaterial({ color: 0xff7a2f, side: THREE.DoubleSide }));
+    m.rotation.x = -Math.PI / 2; m.position.y = 0.075; g.add(m);
+  });
+  [0.55, 1.05].forEach(a => {                                    // ribs around the dome
+    const rr = 10 * Math.sin(a) + 0.05, rib = mesh(new THREE.TorusGeometry(rr, 0.13, 8, 48), M.orange, 0, 1.2 + 10 * Math.cos(a), 0, false);
+    rib.rotation.x = Math.PI / 2; g.add(rib);
+  });
+  g.add(mesh(new THREE.CylinderGeometry(0.12, 0.2, 5, 8), M.grey, 0, 13.6, 0));                // roof mast
+  g.add(mesh(new THREE.SphereGeometry(0.35, 12, 8), M.orange, 0, 16.3, 0, false));
+  for (let i = 0; i < 8; i++) {                                  // lamp posts
+    const a = (i + 0.5) / 8 * Math.PI * 2, x = Math.sin(a) * 27, z = Math.cos(a) * 27;
+    g.add(mesh(new THREE.CylinderGeometry(0.1, 0.16, 5, 8), M.grey, x, 2.5, z));
+    g.add(mesh(new THREE.BoxGeometry(0.7, 0.25, 0.7), M.win, x, 5.1, z, false));
+  }
+  // flag (an invented one: blue field with an orange moon)
+  { const c = document.createElement('canvas'); c.width = 128; c.height = 80; const x = c.getContext('2d');
+    x.fillStyle = '#12264f'; x.fillRect(0, 0, 128, 80); x.fillStyle = '#ff7a2f'; x.beginPath(); x.arc(64, 40, 24, 0, 7); x.fill();
+    x.fillStyle = '#12264f'; x.beginPath(); x.arc(74, 34, 20, 0, 7); x.fill();
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    g.add(mesh(new THREE.CylinderGeometry(0.08, 0.1, 9, 8), M.grey, 8, 4.5, 22));
+    const fl = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 2), new THREE.MeshBasicMaterial({ map: t, side: THREE.DoubleSide }));
+    fl.position.set(9.7, 7.9, 22); g.add(fl);
+    g.add(mesh(new THREE.SphereGeometry(0.16, 8, 6), M.orange, 8, 9.1, 22, false)); }
+  // sign on the airlock roof
+  { const c = document.createElement('canvas'); c.width = 512; c.height = 96; const x = c.getContext('2d');
+    x.fillStyle = '#0c1628'; x.fillRect(0, 0, 512, 96); x.strokeStyle = '#ff7a2f'; x.lineWidth = 6; x.strokeRect(4, 4, 504, 88);
+    x.fillStyle = '#9fe9ff'; x.font = '700 54px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('MOON BASE', 256, 52);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    g.add(mesh(new THREE.BoxGeometry(6.2, 1.2, 0.2), M.dark, 0, 5.6, 15.6));
+    const sg = new THREE.Mesh(new THREE.PlaneGeometry(5.9, 1.1), new THREE.MeshBasicMaterial({ map: t }));
+    sg.position.set(0, 5.6, 15.71); g.add(sg); }
+  // cargo crates
+  [[-8.6, 19.0, 1.5, M.orange], [-7.7, 21.0, 1.5, M.grey], [-8.2, 20.0, 1.2, M.grey]].forEach(([x, z, sz, m], i) => {
+    const cr = mesh(new THREE.BoxGeometry(sz, sz, sz), m, x, sz / 2 + (i === 2 ? 1.5 : 0), z); cr.rotation.y = i * 0.5; g.add(cr);
+  });
+
   // refill zone ring
   const ring = new THREE.Mesh(new THREE.RingGeometry(LAB_RADIUS - 0.5, LAB_RADIUS + 0.5, 64),
     new THREE.MeshBasicMaterial({ color: 0x66e6ff, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }));
