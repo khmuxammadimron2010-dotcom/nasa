@@ -18,6 +18,10 @@ const JUMP_FOOT = 4.7;     // astronaut take-off speed
 const JUMP_CAR = 5.0;      // rover take-off speed
 const JUMP_G_CAR = 9.0;    // the heavy rover falls faster than the astronaut
 const CAP_CARGO = 12;       // rover capacity
+const TANK_START = 35;     // base oxygen tank at the start of level 1 (%)
+const ROCK_O2 = 9;         // % of the base tank one rock gives in the oxygen maker
+const REFILL_COST = 0.1;   // base-tank % used for every 1% of suit oxygen refilled
+const MAKER_RATE = 4;      // %/s the oxygen maker adds to the tank while heating rocks
 const CS = 192;             // terrain chunk size (m)
 const RING = 7;             // chunks loaded around the player (view ~1.3 km)
 const NEAR = 2;             // high-detail ring
@@ -32,7 +36,7 @@ const DOME_IN = 9.4, DOME_OUT = 10.9; // dome wall (ring) — open at the doorwa
 const DOOR_HALF = 1.5;                // half width of the doorway
 function inBuilding(x, z) { return Math.hypot(x, z) < DOME_IN || (Math.abs(x) < 2.9 && z > 9.0 && z < 16.9); }
 // solid parts of the base (ground plan): circles [x, z, r] and boxes [x0, z0, x1, z1]
-const LAB_CIRCLES = [[0, 0, 1.5], [20, 18, 2.3], [-14, 22, 0.6], [8, 22, 0.4]];
+const LAB_CIRCLES = [[0, 0, 1.5], [20, 18, 2.3], [-14, 22, 0.6], [8, 22, 0.4], [7.6, -1.5, 0.65]];
 for (let i = 0; i < 8; i++) { const a = (i + 0.5) / 8 * Math.PI * 2; LAB_CIRCLES.push([Math.sin(a) * 27, Math.cos(a) * 27, 0.35]); }   // lamp posts
 const LAB_BOXES = [
   [10.5, -3.4, 25.8, 3.4], [-25.8, -3.4, -10.5, 3.4], [-3.4, -25.8, 3.4, -10.5],   // side modules + tubes
@@ -96,18 +100,18 @@ const T = {
     st_ok: 'Safe', st_fatigue: 'Fatigue', st_illness: 'Radiation sickness', st_injury: 'Radiation injury',
     obj_getRover: 'Walk to the rover and get in', obj_drive: 'Drive to the glowing crater',
     obj_collect: 'Collect the glowing rock samples', obj_load: 'Load the samples into the rover',
-    obj_return: 'Drive back to the lab', obj_store: 'Store the samples in the lab',
+    obj_return: 'Drive back to the lab', obj_store: 'Put the rocks into the oxygen maker',
     obj_walkRover: 'Return to the rover', obj_exitLab: 'Walk out of the lab',
     tgt_lab: 'Lab', tgt_rover: 'Rover', tgt_rock: 'Sample',
     p_enter: 'Press E — get into the rover', p_exit: 'Press E — get out of the rover',
     p_collect: 'Press E — collect rock sample', p_load: 'Press E — load samples into the rover',
-    p_store: 'Press E — store samples in the lab',
-    a_collect: 'Collecting sample…', a_load: 'Loading the rover…', a_store: 'Storing samples in the lab…',
+    p_store: 'Press E — put the rocks into the oxygen maker',
+    a_collect: 'Collecting sample…', a_load: 'Loading the rover…', a_store: 'Loading the oxygen maker…',
     w_flareSoon: 'Solar flare in {s} s — get to shelter!',
     w_flare: 'SOLAR FLARE — radiation x3.5! Reach the lab or hide in a crater.',
     w_o2: 'Low oxygen! Return to the lab.', w_en: 'Energy empty — the rover crawls slowly!',
     w_edge: 'You are leaving the mapped area. Turn back.', w_rad: 'High radiation! Get to the lab.',
-    m_refill: 'Lab: oxygen and energy are being restored',
+    m_refill: 'Lab: refilling your suit from the base oxygen tank',
     m_repair: 'Lab: the rover is being repaired',
     money: 'Money', f_broke: 'Not enough money!', f_earn: '+${m} — samples delivered',
     s_heal: 'Press <kbd>H</kbd> — heal to full ({c})', s_healing: 'Healing… press <kbd>H</kbd> to stop',
@@ -117,16 +121,17 @@ const T = {
     helpTitle: 'MOON MISSION',
     help: ['W / S — walk or drive forward / back', 'A / D — turn left / right',
       'Space — jump · Shift — run · B — brake', 'E — interact (rover, rocks, lab)',
-      'C — switch 3rd / 1st person view', 'Inside the base: H — medical bay · R — workshop · E — storage (costs money)', 'Drag the mouse — look around · Wheel — zoom', 'Esc — pause'],
+      'C — switch 3rd / 1st person view', 'Inside the base: E — oxygen maker · H — medical bay · R — workshop (costs money)', 'Drag the mouse — look around · Wheel — zoom', 'Esc — pause'],
     helpGoal: 'Drive to the glowing craters, collect rock samples, load them into the rover and store 12 samples in the lab. The sun’s radiation hurts you outside, and oxygen and energy run down — return to the lab to recover. Stones damage the rover. Go through the airlock into the base: store samples at the storage rack (E), earn money, and spend it at the medical bay (H) and the workshop (R).',
     begin: 'BEGIN MISSION', loading: 'Generating the Moon…',
     paused: 'PAUSED', resume: 'RESUME', quit: 'BACK TO LEVELS',
     winT: 'Discovery complete!', winD: '{d} You delivered {n} samples in {t}.',
-    loseT: 'Mission failed', lose_rad: 'Radiation sickness took the astronaut.', lose_o2: 'The astronaut ran out of oxygen.',
+    loseT: 'Mission failed', lose_rad: 'Radiation sickness took the astronaut.', lose_o2: 'The astronaut ran out of oxygen. Next time, turn back before the Oxygen bar reaches the white line.',
     again: 'PLAY AGAIN', site: 'Crater', lab: 'LAB',
     kidTitle: 'Mission briefing for young astronauts', kidTitleM: 'Mission briefing: The Deadly Shadow', readAloud: '🔊 Read aloud', stopRead: '⏹ Stop reading', controls: 'Controls',
-    kidMoon: ['Welcome, young astronaut! You are standing on the Moon.', 'Your mission: find glowing rocks and bring them to the lab. Scientists study the rocks to learn how the Moon was born.', 'Walk with the W, A, S and D keys. Hold Shift to run, and press Space to jump.', 'Find the rover, which is a moon car, and press E to get in. Then drive to the glowing crater.', 'Stand next to a glowing rock and press E to pick it up. Your backpack holds four rocks. Press E near the rover to load them.', 'Drive back to the lab, walk inside, and press E at the storage rack. You earn money for every rock!', 'Watch your bars. Oxygen and energy go down outside, so return to the lab to refill them. Healing costs money.', 'Be careful! The Moon has no air. In the sun it is very hot, plus 121 degrees, and at night it is freezing, minus 173 degrees.', 'Ready? Press the Begin button. Good luck!'],
+    kidMoon: ['Welcome, young astronaut! Our Moon base is running out of air to breathe.', 'There is no air on the Moon. Your space suit carries a small tank of oxygen, and the base has one big oxygen tank.', 'Here is the secret: Moon rocks are almost half oxygen! It is locked inside the stone, and the oxygen maker in the base can pull it out.', 'Your job: collect the glowing rocks, bring them back, and put them into the oxygen maker. Fill the base tank to 100 percent.', 'Watch the Oxygen bar. The timer shows how long your air will last, and the white line shows how much air you need to get home. Always turn back before your oxygen reaches the line!', 'Running makes you breathe faster and uses more oxygen. The rover is fast, so driving uses less air on every trip.', 'At the base, the lab refills your suit from the big tank. Every refill uses base oxygen, so do not waste it.', 'Walk with W, A, S and D, jump with Space, and press E to pick up rocks and to get into the rover.', 'Ready? Press the Begin button. Good luck!'],
     kidShadow: ['Welcome, young astronaut! A radio tower is broken inside a deep, dark crater.', 'In the sunshine, your space suit gets very hot. But in the crater\'s shadow it is minus 173 degrees! Your energy and health freeze fast.', 'Here is a secret. On Earth, the air works like a blanket and keeps the heat. The Moon has no air, so the sun is boiling and the shade is freezing.', 'Your plan: drive the rover to the crater. Walk to each glowing spot on the sunny edge and press E to put up a giant mirror. You have three mirrors.', 'The mirrors bounce sunlight into the dark crater and make a warm, bright spot around the tower.', 'Now climb down, stand in the warm light, and press E at the tower to start repairing it. If you walk away, the repair pauses, so you can warm up and come back.', 'Walk with W, A, S and D, jump with Space, and press E to use things. Press C to change the camera.', 'Ready? Press the Begin button. Good luck!'],
+    tank: 'Base O₂ tank', o2home: 'Way home needs ~{n}%', obj_fill: 'Base oxygen tank: {n}%', maker: 'Oxygen maker', heating: '{n} rocks heating', idle: 'ready', rocks: 'Rocks delivered', obj_home: 'Go back and refill your oxygen', w_turn: 'TURN BACK NOW! You have {a}% oxygen — the way home needs about {b}%.', w_soon: 'Head home soon — your oxygen is close to the white line.', w_tank0: 'The base tank is EMPTY — the lab cannot refill your suit! The backup makes air very slowly. Bring rocks!', w_tankLow: 'The base tank is almost empty — bring rocks soon!', f_oxy: '+{o}% base oxygen · +${m}', f_newRocks: 'New glowing rocks were found at the craters!', tip_out: 'You are outside now. Your suit uses oxygen — watch the timer next to Oxygen.', tip_run: 'Running makes you breathe faster: oxygen goes down almost twice as fast.', tip_rover: 'The rover is fast, so every trip uses less oxygen. Drive to save air!', tip_half: 'Half your oxygen is gone. Keep the Oxygen bar above the white line — that is what you need to get home.', tip_rock: 'This dark lava rock is almost half oxygen, locked inside its minerals!', tip_maker: 'The oxygen maker heats the rocks and pulls the oxygen out. Watch the base tank fill up!', tip_refill: 'The lab is refilling your suit from the base tank. Every refill uses base oxygen.', winT1: 'The base can breathe again!', winD1: 'You made enough oxygen from Moon rocks to fill the base tank ({n} rocks, time {t}). Moon rocks are about 40–45% oxygen by weight — it is locked inside minerals like ilmenite that formed in ancient lava. Future astronauts plan to make air to breathe and rocket fuel this way.',
     clock: 'Lunar time', t_out: 'Outside', t_suit: 'Suit', ph_day: 'Day', ph_night: 'Night', ph_dawn: 'Sunrise', ph_dusk: 'Sunset',
     w_cold: 'SUIT FREEZING — get into sunlight or the mirror beam!', w_hot: 'SUIT OVERHEATING — get into shade or the rover!',
     w_dark: 'Crater shadow: no air to hold heat — it is −173 °C! Place mirrors on the rim.',
@@ -146,18 +151,18 @@ const T = {
     st_ok: 'Xavfsiz', st_fatigue: 'Charchoq', st_illness: 'Nur kasalligi', st_injury: 'Radiatsion jarohat',
     obj_getRover: 'Roverga borib, unga o‘tiring', obj_drive: 'Yonib turgan krater tomon yuring',
     obj_collect: 'Yonib turgan tosh namunalarini yig‘ing', obj_load: 'Namunalarni roverga yuklang',
-    obj_return: 'Laboratoriyaga qayting', obj_store: 'Namunalarni laboratoriyaga qo‘ying',
+    obj_return: 'Laboratoriyaga qayting', obj_store: 'Toshlarni kislorod mashinasiga soling',
     obj_walkRover: 'Roverga qayting', obj_exitLab: 'Laboratoriyadan chiqing',
     tgt_lab: 'Laboratoriya', tgt_rover: 'Rover', tgt_rock: 'Namuna',
     p_enter: 'E bosing — roverga o‘tirish', p_exit: 'E bosing — roverdan tushish',
     p_collect: 'E bosing — tosh namunasini olish', p_load: 'E bosing — namunalarni roverga yuklash',
-    p_store: 'E bosing — namunalarni laboratoriyaga qo‘yish',
-    a_collect: 'Namuna olinmoqda…', a_load: 'Rover yuklanmoqda…', a_store: 'Namunalar laboratoriyaga qo‘yilmoqda…',
+    p_store: 'E bosing — toshlarni kislorod mashinasiga solish',
+    a_collect: 'Namuna olinmoqda…', a_load: 'Rover yuklanmoqda…', a_store: 'Kislorod mashinasiga solinmoqda…',
     w_flareSoon: 'Quyosh alangasi {s} soniyada — panoh toping!',
     w_flare: 'QUYOSH ALANGASI — radiatsiya 3,5 baravar! Laboratoriyaga yoki kraterga yashiring.',
     w_o2: 'Kislorod kam! Laboratoriyaga qayting.', w_en: 'Energiya tugadi — rover sekin yuradi!',
     w_edge: 'Xarita chegarasidan chiqyapsiz. Orqaga qayting.', w_rad: 'Radiatsiya yuqori! Laboratoriyaga boring.',
-    m_refill: 'Laboratoriya: kislorod va energiya tiklanmoqda',
+    m_refill: 'Laboratoriya: kostyum baza kislorod bakidan to‘ldirilmoqda',
     m_repair: 'Laboratoriya: rover ta’mirlanmoqda',
     money: 'Pul', f_broke: 'Pul yetarli emas!', f_earn: '+${m} — namunalar topshirildi',
     s_heal: '<kbd>H</kbd> bosing — to‘liq davolanish ({c})', s_healing: 'Davolanmoqda… to‘xtatish uchun <kbd>H</kbd>',
@@ -167,16 +172,17 @@ const T = {
     helpTitle: 'OY MISSIYASI',
     help: ['W / S — oldinga / orqaga yurish yoki haydash', 'A / D — chapga / o‘ngga burilish',
       'Space — sakrash · Shift — yugurish · B — tormoz', 'E — o‘zaro ta’sir (rover, toshlar, laboratoriya)',
-      'C — ko‘rinish: 3-shaxs / 1-shaxs', 'Bazada: H — tibbiyot · R — ustaxona · E — ombor (pul kerak)', 'Sichqonchani sudrang — atrofga qarash · G‘ildirak — yaqinlashtirish', 'Esc — pauza'],
+      'C — ko‘rinish: 3-shaxs / 1-shaxs', 'Bazada: E — kislorod mashinasi · H — tibbiyot · R — ustaxona (pul kerak)', 'Sichqonchani sudrang — atrofga qarash · G‘ildirak — yaqinlashtirish', 'Esc — pauza'],
     helpGoal: 'Yonib turgan kraterlarga boring, tosh namunalarini yig‘ing, roverga yuklang va laboratoriyaga 12 ta namuna yetkazing. Tashqarida quyosh radiatsiyasi zarar qiladi, kislorod va energiya kamayadi — tiklanish uchun laboratoriyaga qayting. Toshlar roverga zarar yetkazadi. Shlyuz orqali bazaga kiring: namunalarni omborga (E) qo‘ying, pul ishlang va uni tibbiyot xonasi (H) hamda ustaxona (R) uchun sarflang.',
     begin: 'MISSIYANI BOSHLASH', loading: 'Oy yaratilmoqda…',
     paused: 'PAUZA', resume: 'DAVOM ETISH', quit: 'BOSQICHLARGA QAYTISH',
     winT: 'Kashfiyot yakunlandi!', winD: '{d} Siz {t} ichida {n} ta namuna yetkazdingiz.',
-    loseT: 'Missiya muvaffaqiyatsiz', lose_rad: 'Nur kasalligi kosmonavtni olib ketdi.', lose_o2: 'Kosmonavtning kislorodi tugadi.',
+    loseT: 'Missiya muvaffaqiyatsiz', lose_rad: 'Nur kasalligi kosmonavtni olib ketdi.', lose_o2: 'Kosmonavtning kislorodi tugadi. Keyingi safar Kislorod chizig‘i oq chiziqqa yetmasdan orqaga qayting.',
     again: 'QAYTA O‘YNASH', site: 'Krater', lab: 'LAB',
     kidTitle: 'Yosh kosmonavtlar uchun missiya tushuntirishi', kidTitleM: 'Missiya tushuntirishi: O‘limli soya', readAloud: '🔊 Ovoz chiqarib o‘qish', stopRead: '⏹ To‘xtatish', controls: 'Boshqaruv',
-    kidMoon: ['Xush kelibsiz, yosh kosmonavt! Siz hozir Oyning ustidasiz.', 'Vazifangiz: yonib turgan toshlarni topib, laboratoriyaga olib kelish. Olimlar bu toshlarni o‘rganib, Oy qanday paydo bo‘lganini bilib oladilar.', 'W, A, S, D tugmalari bilan yuring. Yugurish uchun Shift, sakrash uchun Probel tugmasini bosing.', 'Oy mashinasi — roverni toping va E tugmasini bosib o‘tiring. Keyin yonib turgan kraterga haydang.', 'Yonib turgan tosh yoniga borib, olish uchun E ni bosing. Ryukzakka to‘rtta tosh sig‘adi. Roverga yuklash uchun rover yonida yana E ni bosing.', 'Laboratoriyaga qaytib, ichkariga kiring va omborxona yonida E ni bosing. Har bir tosh uchun pul olasiz!', 'Ko‘rsatkichlarni kuzating. Tashqarida kislorod va energiya kamayadi, ularni to‘ldirish uchun laboratoriyaga qayting. Davolanish pul turadi.', 'Ehtiyot bo‘ling! Oyda havo yo‘q. Quyoshda juda issiq, ortiqcha 121 daraja, tunda esa muzdek sovuq, minus 173 daraja.', 'Tayyormisiz? Boshlash tugmasini bosing. Omad!'],
+    kidMoon: ['Xush kelibsiz, yosh kosmonavt! Oydagi bazamizda nafas olish uchun havo tugab bormoqda.', 'Oyda havo yo‘q. Kostyumingizda kichik kislorod idishi bor, bazada esa bitta katta kislorod baki bor.', 'Mana sir: Oy toshlarining deyarli yarmi kislorod! U tosh ichiga qamalgan, bazadagi kislorod mashinasi esa uni ajratib oladi.', 'Vazifangiz: yonib turgan toshlarni yig‘ing, olib keling va kislorod mashinasiga soling. Baza bakini 100 foizgacha to‘ldiring.', 'Kislorod ko‘rsatkichini kuzating. Taymer havo qancha vaqtga yetishini, oq chiziq esa uyga qaytish uchun qancha havo kerakligini ko‘rsatadi. Kislorod chiziqqa yetmasdan har doim orqaga qayting!', 'Yugurganda tezroq nafas olasiz va ko‘proq kislorod sarflaysiz. Rover tez yuradi, shuning uchun har bir safarda kamroq havo ketadi.', 'Bazada laboratoriya kostyumingizni katta bakdan to‘ldiradi. Har bir to‘ldirish baza kislorodini sarflaydi, shuning uchun uni isrof qilmang.', 'W, A, S, D bilan yuring, Probel bilan sakrang, tosh olish va roverga o‘tirish uchun E ni bosing.', 'Tayyormisiz? Boshlash tugmasini bosing. Omad!'],
     kidShadow: ['Xush kelibsiz, yosh kosmonavt! Chuqur va qorong‘i krater ichida aloqa minorasi sindi.', 'Quyosh nurida kostyumingiz juda qiziydi. Krater soyasida esa minus 173 daraja! Energiya va salomatlik tez muzlaydi.', 'Mana bir sir. Yerda havo ko‘rpa kabi issiqlikni ushlab turadi. Oyda havo yo‘q, shuning uchun quyoshda qaynaydi, soyada muzlaydi.', 'Rejangiz: roverda kraterga boring. Quyoshli qirg‘oqdagi har bir yonib turgan joyga borib, E ni bosing va ulkan oyna o‘rnating. Sizda uchta oyna bor.', 'Oynalar quyosh nurini qorong‘i kraterga qaytaradi va minora atrofida iliq, yorug‘ joy hosil qiladi.', 'Endi pastga tushing, iliq nurda turing va minora yonida E ni bosib, ta’mirlashni boshlang. Uzoqlashsangiz, ta’mir to‘xtab turadi, isinib qaytishingiz mumkin.', 'W, A, S, D bilan yuring, Probel bilan sakrang, E bilan harakat qiling. C tugmasi kamerani almashtiradi.', 'Tayyormisiz? Boshlash tugmasini bosing. Omad!'],
+    tank: 'Baza O₂ baki', o2home: 'Uyga qaytishga ~{n}% kerak', obj_fill: 'Baza kislorod baki: {n}%', maker: 'Kislorod mashinasi', heating: '{n} ta tosh qizimoqda', idle: 'tayyor', rocks: 'Topshirilgan toshlar', obj_home: 'Qaytib, kislorodni to‘ldiring', w_turn: 'HOZIROQ ORQAGA QAYTING! Sizda {a}% kislorod bor — uyga yo‘l taxminan {b}% oladi.', w_soon: 'Tez orada uyga qayting — kislorod oq chiziqqa yaqinlashmoqda.', w_tank0: 'Baza baki BO‘SH — laboratoriya kostyumni to‘ldira olmaydi! Zaxira tizim havoni juda sekin qiladi. Tosh olib keling!', w_tankLow: 'Baza baki deyarli bo‘sh — tezroq tosh olib keling!', f_oxy: '+{o}% baza kislorodi · +${m}', f_newRocks: 'Kraterlarda yangi yonib turgan toshlar topildi!', tip_out: 'Endi siz tashqaridasiz. Kostyum kislorod sarflaydi — Kislorod yonidagi taymerni kuzating.', tip_run: 'Yugurganda tez nafas olasiz: kislorod deyarli ikki baravar tez kamayadi.', tip_rover: 'Rover tez yuradi, shuning uchun har bir safarda kamroq kislorod ketadi. Havoni tejash uchun roverda yuring!', tip_half: 'Kislorodning yarmi tugadi. Kislorod chizig‘ini oq chiziqdan yuqorida saqlang — uyga qaytish uchun shuncha kerak.', tip_rock: 'Bu qora lava toshining deyarli yarmi kislorod — u minerallar ichiga qamalgan!', tip_maker: 'Kislorod mashinasi toshlarni qizdirib, ichidan kislorodni ajratib oladi. Baza baki to‘lishini kuzating!', tip_refill: 'Laboratoriya kostyumingizni baza bakidan to‘ldirmoqda. Har bir to‘ldirish baza kislorodini sarflaydi.', winT1: 'Baza yana nafas olmoqda!', winD1: 'Siz Oy toshlaridan baza bakini to‘ldirishga yetarli kislorod oldingiz ({n} ta tosh, vaqt {t}). Oy toshlari og‘irligining taxminan 40–45 foizi kislorod — u qadimgi lavada hosil bo‘lgan ilmenit kabi minerallar ichiga qamalgan. Kelajakda kosmonavtlar shu yo‘l bilan nafas olish uchun havo va raketa yoqilg‘isi olishni rejalashtirmoqda.',
     clock: 'Oy vaqti', t_out: 'Tashqarida', t_suit: 'Kostyum', ph_day: 'Kunduz', ph_night: 'Tun', ph_dawn: 'Tong', ph_dusk: 'Shom',
     w_cold: 'KOSTYUM MUZLAYAPTI — quyosh nuriga yoki oyna nuriga chiqing!', w_hot: 'KOSTYUM O‘TA QIZIYAPTI — soyaga yoki roverga o‘ting!',
     w_dark: 'Krater soyasi: issiqlikni ushlab turadigan havo yo‘q — −173 °C! Qirg‘oqqa oynalar qo‘ying.',
@@ -196,18 +202,18 @@ const T = {
     st_ok: 'Безопасно', st_fatigue: 'Усталость', st_illness: 'Лучевая болезнь', st_injury: 'Лучевая травма',
     obj_getRover: 'Подойдите к роверу и сядьте в него', obj_drive: 'Езжайте к светящемуся кратеру',
     obj_collect: 'Соберите светящиеся образцы породы', obj_load: 'Погрузите образцы в ровер',
-    obj_return: 'Возвращайтесь в лабораторию', obj_store: 'Сдайте образцы в лабораторию',
+    obj_return: 'Возвращайтесь в лабораторию', obj_store: 'Загрузите камни в кислородную машину',
     obj_walkRover: 'Вернитесь к роверу', obj_exitLab: 'Выйдите из лаборатории',
     tgt_lab: 'Лаборатория', tgt_rover: 'Ровер', tgt_rock: 'Образец',
     p_enter: 'Нажмите E — сесть в ровер', p_exit: 'Нажмите E — выйти из ровера',
     p_collect: 'Нажмите E — взять образец', p_load: 'Нажмите E — погрузить образцы в ровер',
-    p_store: 'Нажмите E — сдать образцы в лабораторию',
-    a_collect: 'Сбор образца…', a_load: 'Погрузка в ровер…', a_store: 'Образцы убираются в лабораторию…',
+    p_store: 'Нажмите E — загрузить камни в кислородную машину',
+    a_collect: 'Сбор образца…', a_load: 'Погрузка в ровер…', a_store: 'Загрузка кислородной машины…',
     w_flareSoon: 'Солнечная вспышка через {s} с — найдите укрытие!',
     w_flare: 'СОЛНЕЧНАЯ ВСПЫШКА — радиация x3,5! Спрячьтесь в лаборатории или в кратере.',
     w_o2: 'Мало кислорода! Вернитесь в лабораторию.', w_en: 'Энергия закончилась — ровер едва ползёт!',
     w_edge: 'Вы покидаете карту. Поверните назад.', w_rad: 'Высокая радиация! Идите в лабораторию.',
-    m_refill: 'Лаборатория: восстанавливаются кислород и энергия',
+    m_refill: 'Лаборатория: скафандр заправляется из кислородного бака базы',
     m_repair: 'Лаборатория: ровер ремонтируется',
     money: 'Деньги', f_broke: 'Недостаточно денег!', f_earn: '+${m} — образцы сданы',
     s_heal: 'Нажмите <kbd>H</kbd> — полностью вылечиться ({c})', s_healing: 'Лечение… нажмите <kbd>H</kbd>, чтобы остановить',
@@ -217,16 +223,17 @@ const T = {
     helpTitle: 'ЛУННАЯ МИССИЯ',
     help: ['W / S — идти или ехать вперёд / назад', 'A / D — поворот влево / вправо',
       'Пробел — прыжок · Shift — бег · B — тормоз', 'E — действие (ровер, камни, лаборатория)',
-      'C — вид от 3-го / 1-го лица', 'В базе: H — медотсек · R — мастерская · E — склад (за деньги)', 'Перетаскивайте мышь — осмотр · Колесо — масштаб', 'Esc — пауза'],
+      'C — вид от 3-го / 1-го лица', 'В базе: E — кислородная машина · H — медотсек · R — мастерская (за деньги)', 'Перетаскивайте мышь — осмотр · Колесо — масштаб', 'Esc — пауза'],
     helpGoal: 'Езжайте к светящимся кратерам, собирайте образцы породы, грузите их в ровер и сдайте 12 образцов в лабораторию. Снаружи солнечная радиация вредит здоровью, а кислород и энергия убывают — для восстановления возвращайтесь в лабораторию. Камни повреждают ровер. Пройдите через шлюз в базу: сдавайте образцы на склад (E), зарабатывайте деньги и тратьте их в медотсеке (H) и мастерской (R).',
     begin: 'НАЧАТЬ МИССИЮ', loading: 'Создаём Луну…',
     paused: 'ПАУЗА', resume: 'ПРОДОЛЖИТЬ', quit: 'К УРОВНЯМ',
     winT: 'Открытие совершено!', winD: '{d} Вы доставили образцов: {n}, время: {t}.',
-    loseT: 'Миссия провалена', lose_rad: 'Лучевая болезнь погубила астронавта.', lose_o2: 'У астронавта закончился кислород.',
+    loseT: 'Миссия провалена', lose_rad: 'Лучевая болезнь погубила астронавта.', lose_o2: 'У астронавта закончился кислород. В следующий раз поворачивай назад, пока шкала кислорода не дошла до белой черты.',
     again: 'ИГРАТЬ СНОВА', site: 'Кратер', lab: 'ЛАБ',
     kidTitle: 'Инструктаж для юных астронавтов', kidTitleM: 'Инструктаж: Смертельная тень', readAloud: '🔊 Прочитать вслух', stopRead: '⏹ Остановить', controls: 'Управление',
-    kidMoon: ['Добро пожаловать, юный астронавт! Ты стоишь на Луне.', 'Твоя миссия: найти светящиеся камни и принести их в лабораторию. Учёные изучают эти камни, чтобы узнать, как появилась Луна.', 'Ходи клавишами W, A, S и D. Держи Shift, чтобы бежать, и нажми пробел, чтобы прыгнуть.', 'Найди ровер — это лунная машина — и нажми E, чтобы сесть. Потом поезжай к светящемуся кратеру.', 'Встань рядом со светящимся камнем и нажми E, чтобы поднять его. В рюкзак помещается четыре камня. Рядом с ровером снова нажми E, чтобы погрузить их.', 'Вернись в лабораторию, зайди внутрь и нажми E у склада. За каждый камень ты получишь деньги!', 'Следи за шкалами. Снаружи кислород и энергия убывают, поэтому возвращайся в лабораторию, чтобы пополнить их. Лечение стоит денег.', 'Будь осторожен! На Луне нет воздуха. На солнце очень жарко, плюс 121 градус, а ночью лютый холод, минус 173 градуса.', 'Готов? Нажми кнопку «Начать». Удачи!'],
+    kidMoon: ['Добро пожаловать, юный астронавт! На нашей лунной базе заканчивается воздух для дыхания.', 'На Луне нет воздуха. В твоём скафандре маленький баллон с кислородом, а на базе — один большой кислородный бак.', 'Вот секрет: лунные камни почти наполовину состоят из кислорода! Он заперт внутри камня, и кислородная машина на базе умеет его извлекать.', 'Твоя задача: собери светящиеся камни, привези их на базу и загрузи в кислородную машину. Наполни бак базы до 100 процентов.', 'Следи за шкалой кислорода. Таймер показывает, на сколько хватит воздуха, а белая черта — сколько воздуха нужно, чтобы вернуться домой. Всегда поворачивай назад, пока кислород не дошёл до черты!', 'Когда бежишь, дышишь чаще и тратишь больше кислорода. Ровер быстрый, поэтому на нём каждая поездка тратит меньше воздуха.', 'На базе лаборатория заправляет скафандр из большого бака. Каждая заправка тратит кислород базы, поэтому не трать его зря.', 'Ходи клавишами W, A, S и D, прыгай пробелом и нажимай E, чтобы поднять камень и сесть в ровер.', 'Готов? Нажми кнопку «Начать». Удачи!'],
     kidShadow: ['Добро пожаловать, юный астронавт! В глубоком тёмном кратере сломалась башня связи.', 'На солнце твой скафандр сильно нагревается. А в тени кратера минус 173 градуса! Энергия и здоровье быстро замерзают.', 'Вот секрет. На Земле воздух работает как одеяло и сохраняет тепло. На Луне воздуха нет, поэтому на солнце кипяток, а в тени мороз.', 'Твой план: поезжай на ровере к кратеру. Подойди к каждому светящемуся месту на солнечном краю и нажми E, чтобы поставить гигантское зеркало. У тебя три зеркала.', 'Зеркала отразят солнечный свет в тёмный кратер и создадут тёплое светлое пятно вокруг башни.', 'Теперь спустись вниз, встань в тёплый свет и нажми E у башни, чтобы начать ремонт. Если отойдёшь, ремонт встанет на паузу — можно согреться и вернуться.', 'Ходи клавишами W, A, S и D, прыгай пробелом, действуй клавишей E. Клавиша C меняет камеру.', 'Готов? Нажми кнопку «Начать». Удачи!'],
+    tank: 'Бак O₂ базы', o2home: 'Путь домой: нужно ~{n}%', obj_fill: 'Кислородный бак базы: {n}%', maker: 'Кислородная машина', heating: 'греются камни: {n}', idle: 'готова', rocks: 'Сдано камней', obj_home: 'Вернитесь и пополните кислород', w_turn: 'НЕМЕДЛЕННО ПОВОРАЧИВАЙ! У тебя {a}% кислорода — на дорогу домой нужно около {b}%.', w_soon: 'Скоро пора домой — кислород приближается к белой черте.', w_tank0: 'Бак базы ПУСТ — лаборатория не может заправить скафандр! Резервная система делает воздух очень медленно. Привези камни!', w_tankLow: 'Бак базы почти пуст — скорее привези камни!', f_oxy: '+{o}% кислорода базы · +${m}', f_newRocks: 'В кратерах найдены новые светящиеся камни!', tip_out: 'Теперь ты снаружи. Скафандр тратит кислород — следи за таймером рядом с «Кислород».', tip_run: 'Когда бежишь, дышишь чаще: кислород уходит почти вдвое быстрее.', tip_rover: 'Ровер быстрый, поэтому каждая поездка тратит меньше кислорода. Езди, чтобы беречь воздух!', tip_half: 'Половина кислорода израсходована. Держи шкалу кислорода выше белой черты — столько нужно, чтобы вернуться домой.', tip_rock: 'Этот тёмный лавовый камень почти наполовину состоит из кислорода, запертого в минералах!', tip_maker: 'Кислородная машина нагревает камни и извлекает из них кислород. Смотри, как наполняется бак базы!', tip_refill: 'Лаборатория заправляет скафандр из бака базы. Каждая заправка тратит кислород базы.', winT1: 'База снова дышит!', winD1: 'Ты добыл из лунных камней достаточно кислорода, чтобы наполнить бак базы (камней: {n}, время {t}). Лунные камни примерно на 40–45 % по массе состоят из кислорода — он заперт в минералах вроде ильменита, которые образовались в древней лаве. Будущие астронавты собираются так получать воздух для дыхания и ракетное топливо.',
     clock: 'Лунное время', t_out: 'Снаружи', t_suit: 'Скафандр', ph_day: 'День', ph_night: 'Ночь', ph_dawn: 'Рассвет', ph_dusk: 'Закат',
     w_cold: 'СКАФАНДР ЗАМЕРЗАЕТ — выйдите на солнце или в луч зеркала!', w_hot: 'СКАФАНДР ПЕРЕГРЕВАЕТСЯ — уйдите в тень или в ровер!',
     w_dark: 'Тень кратера: нет воздуха, чтобы удерживать тепло — здесь −173 °C! Поставьте зеркала на кромке.',
@@ -321,7 +328,7 @@ function sunBlocked(x, z, ux, uz, tanE) {
 
 // ----------------------------------------------------------------- textures
 function makeDetailTexture() {
-  const N = 256, c = document.createElement('canvas');
+  const N = 512, c = document.createElement('canvas');
   c.width = c.height = N;
   const ctx = c.getContext('2d'), img = ctx.createImageData(N, N);
   const octs = [[8, 0.35], [16, 0.25], [32, 0.2], [64, 0.12], [128, 0.08]];
@@ -346,19 +353,22 @@ function makeDetailTexture() {
   return tex;
 }
 function makeEarthTexture() {
-  const c = document.createElement('canvas'); c.width = 512; c.height = 256;
+  const W = 1024, H = 512, c = document.createElement('canvas'); c.width = W; c.height = H;
   const g = c.getContext('2d');
-  g.fillStyle = '#1b5fb8'; g.fillRect(0, 0, 512, 256);
-  g.fillStyle = '#2f8f4e';
-  for (let i = 0; i < 26; i++) { g.beginPath(); g.ellipse(Math.random() * 512, 30 + Math.random() * 196, 14 + Math.random() * 46, 8 + Math.random() * 26, Math.random() * 3, 0, 7); g.fill(); }
-  g.fillStyle = 'rgba(255,255,255,.55)';
-  for (let i = 0; i < 40; i++) { g.beginPath(); g.ellipse(Math.random() * 512, Math.random() * 256, 20 + Math.random() * 60, 4 + Math.random() * 10, Math.random() * 3, 0, 7); g.fill(); }
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  const sea = g.createLinearGradient(0, 0, 0, H); sea.addColorStop(0, '#1d4f9a'); sea.addColorStop(0.5, '#1b63bf'); sea.addColorStop(1, '#1d4f9a');
+  g.fillStyle = sea; g.fillRect(0, 0, W, H);
+  const land = ['#3a8a4a', '#4b9a50', '#7a8a48', '#9c8a5a'];
+  for (let i = 0; i < 34; i++) {
+    const x = Math.random() * W, y = 70 + Math.random() * (H - 140), rx = 30 + Math.random() * 90, ry = 18 + Math.random() * 50;
+    for (let k = 0; k < 9; k++) { g.fillStyle = land[(i + k) % land.length]; g.beginPath(); g.ellipse(x + (Math.random() - 0.5) * rx, y + (Math.random() - 0.5) * ry, rx * (0.3 + Math.random() * 0.5), ry * (0.3 + Math.random() * 0.5), Math.random() * 3, 0, 7); g.fill(); }
+  }
+  g.fillStyle = '#f2f6fb'; g.fillRect(0, 0, W, 26); g.fillRect(0, H - 30, W, 30);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
 function makeCloudTexture() {
-  const c = document.createElement('canvas'); c.width = 512; c.height = 256;
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 512;
   const g = c.getContext('2d');
-  for (let i = 0; i < 70; i++) { g.fillStyle = 'rgba(255,255,255,' + (0.35 + Math.random() * 0.5) + ')'; g.beginPath(); g.ellipse(Math.random() * 512, 20 + Math.random() * 216, 16 + Math.random() * 50, 3 + Math.random() * 9, (Math.random() - 0.5) * 0.7, 0, 7); g.fill(); }
+  for (let i = 0; i < 150; i++) { g.fillStyle = 'rgba(255,255,255,' + (0.35 + Math.random() * 0.5) + ')'; g.beginPath(); g.ellipse(Math.random() * 1024, 40 + Math.random() * 432, 24 + Math.random() * 100, 5 + Math.random() * 16, (Math.random() - 0.5) * 0.7, 0, 7); g.fill(); }
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 function makeDiscTexture() {
@@ -566,9 +576,9 @@ function makeLab() {
   // ---- interior: hologram table, medical bay, storage, workshop
   const mk = (w, h, d, m, x, y, z, ry = 0) => { const o = mesh(new THREE.BoxGeometry(w, h, d), m, x, y, z); o.rotation.y = ry; g.add(o); return o; };
   const sign = (text, color, x, y, z, ry, w = 2.6) => {
-    const c = document.createElement('canvas'); c.width = 320; c.height = 80; const k = c.getContext('2d');
-    k.fillStyle = '#0c1628'; k.fillRect(0, 0, 320, 80); k.strokeStyle = color; k.lineWidth = 5; k.strokeRect(3, 3, 314, 74);
-    k.fillStyle = color; k.font = '700 40px sans-serif'; k.textAlign = 'center'; k.textBaseline = 'middle'; k.fillText(text, 160, 42);
+    const c = document.createElement('canvas'); c.width = 640; c.height = 160; const k = c.getContext('2d');
+    k.fillStyle = '#0c1628'; k.fillRect(0, 0, 640, 160); k.strokeStyle = color; k.lineWidth = 10; k.strokeRect(6, 6, 628, 148);
+    k.fillStyle = color; k.font = '700 80px sans-serif'; k.textAlign = 'center'; k.textBaseline = 'middle'; k.fillText(text, 320, 84, 600);
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
     const p = new THREE.Mesh(new THREE.PlaneGeometry(w, w / 4), new THREE.MeshBasicMaterial({ map: t })); p.position.set(x, y, z); p.rotation.y = ry; g.add(p);
   };
@@ -585,7 +595,17 @@ function makeLab() {
   mk(1.0, 2.4, 3.6, M.dark, STORE.x + 0.2, 1.3, STORE.z);
   [0.7, 1.4, 2.1].forEach(y => mk(0.06, 0.1, 3.3, new THREE.MeshBasicMaterial({ color: 0x66e6ff }), STORE.x - 0.31, y, STORE.z));
   [[0.45, -1.1], [0.45, 0.2], [1.15, -0.5], [1.15, 1.0], [1.85, 0.2]].forEach(([y, dz], i) => mk(0.4, 0.4, 0.55, i % 2 ? M.orange : M.grey, STORE.x - 0.4, y, STORE.z + dz));
-  sign('STORAGE  E', '#66e6ff', STORE.x - 0.33, 2.9, STORE.z, -Math.PI / 2);
+  sign('O2 MAKER  E', '#ffb070', STORE.x - 0.33, 2.9, STORE.z, -Math.PI / 2);
+  const makerGlow = mk(0.06, 0.22, 3.3, new THREE.MeshBasicMaterial({ color: 0x3a2a22 }), STORE.x - 0.33, 2.45, STORE.z);
+  // the base oxygen tank (fills as rocks are turned into oxygen)
+  g.add(mesh(new THREE.CylinderGeometry(0.62, 0.62, 2.5, 22, 1, true), M.glass, 7.6, 1.35, -1.5, false));
+  g.add(mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.16, 22), M.grey, 7.6, 0.1, -1.5));
+  g.add(mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.16, 22), M.grey, 7.6, 2.62, -1.5));
+  const fillGeo = new THREE.CylinderGeometry(0.54, 0.54, 1, 22); fillGeo.translate(0, 0.5, 0);
+  const tankFill = new THREE.Mesh(fillGeo, new THREE.MeshBasicMaterial({ color: 0x8ec5d6, transparent: true, opacity: 0.85 }));
+  tankFill.position.set(7.6, 0.18, -1.5); g.add(tankFill);
+  { const pipe = mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.4, 8), M.grey, 7.25, 2.2, -0.35, false); pipe.rotation.x = Math.PI / 2; g.add(pipe); }
+  sign('BASE O2', '#8ec5d6', 6.95, 2.95, -1.5, -Math.PI / 2, 1.5);
   // workshop (north wall)
   mk(3.2, 1.0, 0.9, M.dark, WORKSHOP.x, 0.6, WORKSHOP.z - 0.5); mk(3.4, 2.2, 0.2, M.grey, 0, 1.2, -8.55);
   mk(2.6, 0.9, 0.06, new THREE.MeshBasicMaterial({ color: 0x66e6ff, transparent: true, opacity: 0.7 }), 0, 1.7, -8.4);
@@ -655,7 +675,7 @@ function makeLab() {
   const beam = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 160, 12, 1, true),
     new THREE.MeshBasicMaterial({ color: 0x55dfff, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
   beam.position.y = 80; g.add(beam);
-  return { group: g, door, holo };
+  return { group: g, door, holo, tankFill, makerGlow };
 }
 
 // ----------------------------------------------------------------- audio
@@ -723,6 +743,9 @@ const CSS = `
 .mg-tgt b{display:block;font-size:13.5px}.mg-tgt span{color:#BBBAC6}
 .mg-inv{position:absolute;left:18px;top:256px;padding:10px 16px;font-size:12.5px;line-height:1.7;width:250px}
 .mg-inv b{color:#B7CECE;float:right;font-variant-numeric:tabular-nums}
+.mg-bar{position:relative}.mg-bar .mk{position:absolute;top:0;bottom:0;width:3px;margin-left:-1px;background:#fff;box-shadow:0 0 6px rgba(255,255,255,.9);display:none}
+.mg-home{margin-top:4px;font-size:11px;color:#BBBAC6;display:none}
+.mg-tip{position:absolute;left:50%;top:150px;transform:translateX(-50%);max-width:min(560px,80vw);padding:10px 18px;font-size:14px;line-height:1.5;color:#E2E2E2;text-align:center;opacity:0;transition:opacity .4s;pointer-events:none;border-color:rgba(183,206,206,.45)}
 .mg-env{position:absolute;right:18px;top:344px;width:208px;padding:10px 14px;font-size:12.5px;line-height:1.65}
 .mg-env .clk{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}.mg-env .clk b{font-size:17px;letter-spacing:.06em;font-variant-numeric:tabular-nums}.mg-env .clk span{color:#BBBAC6;font-size:11.5px;letter-spacing:.1em;text-transform:uppercase}
 .mg-env .tr{display:flex;justify-content:space-between;color:#BBBAC6}.mg-env .tr b{color:#E2E2E2;font-variant-numeric:tabular-nums}
@@ -794,14 +817,18 @@ function createGame(opts) {
   const canvas = el('canvas', 'mg-canvas'); root.appendChild(canvas);
   const vig = el('div', 'mg-vig'), hurt = el('div', 'mg-hurt'); root.append(vig, hurt);
   const stats = el('div', 'mg-stats mg-glass'); root.appendChild(stats);
-  const BARS = [['health', '#6EE7A0'], ['oxygen', '#B7CECE'], ['energy', '#FFB54D'], ['rover', '#BBBAC6'], ['radiation', '#FF6F6F']];
+  const BARS = [['health', '#6EE7A0'], ['oxygen', '#B7CECE'], ['tank', '#8EC5D6'], ['energy', '#FFB54D'], ['rover', '#BBBAC6'], ['radiation', '#FF6F6F']];
   const bar = {};
   BARS.forEach(([k, c]) => {
     const r = el('div', 'mg-row'); r.style.setProperty('--c', c);
     r.innerHTML = '<div class="mg-rh"><span class="n"></span><span class="mg-rv v"></span></div><div class="mg-bar"><span></span></div>';
     stats.appendChild(r); bar[k] = { row: r, n: r.querySelector('.n'), v: r.querySelector('.v'), f: r.querySelector('.mg-bar span') };
   });
+  bar.oxygen.f.parentNode.insertAdjacentHTML('beforeend', '<i class="mk"></i>'); bar.oxygen.mk = bar.oxygen.row.querySelector('.mk');
+  bar.oxygen.row.insertAdjacentHTML('beforeend', '<div class="mg-home"></div>'); bar.oxygen.home = bar.oxygen.row.querySelector('.mg-home');
+  if (MISSION) bar.tank.row.style.display = 'none';
   const inv = el('div', 'mg-inv mg-glass'); root.appendChild(inv);
+  const tipEl = el('div', 'mg-tip mg-glass'); root.appendChild(tipEl);
   const env = el('div', 'mg-env mg-glass', '<div class="clk"><b></b><span></span></div><div class="tr"><span class="a"></span><b class="av"></b></div><div class="tr"><span class="u"></span><b class="uv"></b></div><div class="tb"><span></span></div>'); root.appendChild(env);
   const envClk = env.querySelector('.clk b'), envPh = env.querySelector('.clk span'), envAn = env.querySelector('.a'), envAv = env.querySelector('.av'), envUn = env.querySelector('.u'), envUv = env.querySelector('.uv'), envBar = env.querySelector('.tb span');
   const dcache = new WeakMap();   // only touch the DOM when a value really changed
@@ -888,8 +915,8 @@ function createGame(opts) {
   }
 
   // ---------- three.js
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: (window.devicePixelRatio || 1) < 1.5, powerPreference: 'high-performance' });
-  const PR_MAX = Math.min(window.devicePixelRatio || 1, 1.75), PR_MIN = 0.7; let pr = PR_MAX;
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+  const PR_MAX = Math.min(2, Math.max(1.25, window.devicePixelRatio || 1)), PR_MIN = 1; let pr = PR_MAX;   // high resolution: full Retina sharpness, never below 1:1
   renderer.setPixelRatio(pr);
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
@@ -899,7 +926,7 @@ function createGame(opts) {
   const camera = new THREE.PerspectiveCamera(62, 1, 0.4, 9000);
 
   const sunLight = new THREE.DirectionalLight(0xfff1dc, 3.4);
-  sunLight.castShadow = true; sunLight.shadow.mapSize.set(1536, 1536);
+  sunLight.castShadow = true; sunLight.shadow.mapSize.set(2048, 2048);
   const sc = sunLight.shadow.camera; sc.left = -70; sc.right = 70; sc.top = 70; sc.bottom = -70; sc.near = 10; sc.far = 420;
   sunLight.shadow.bias = -0.0004; sunLight.shadow.normalBias = 0.35;
   scene.add(sunLight, sunLight.target);
@@ -909,7 +936,7 @@ function createGame(opts) {
   const sunDir = SUN.clone(); let sunSin = SUN.y;
 
   initMaterials();
-  const detailTex = makeDetailTexture();
+  const detailTex = makeDetailTexture(); detailTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
   const terrainMat = new THREE.MeshStandardMaterial({ vertexColors: true, map: detailTex, bumpMap: detailTex, bumpScale: 2.2, roughness: 1, metalness: 0, side: THREE.DoubleSide });
   const rockGeo = new THREE.IcosahedronGeometry(1, 0);
   { const p = rockGeo.attributes.position; for (let i = 0; i < p.count; i++) { const k = 0.78 + 0.44 * hash(Math.round(p.getX(i) * 50), Math.round(p.getY(i) * 50), Math.round(p.getZ(i) * 50) + 13); p.setXYZ(i, p.getX(i) * k, p.getY(i) * k * 0.7, p.getZ(i) * k); } rockGeo.computeVertexNormals(); }
@@ -983,7 +1010,7 @@ function createGame(opts) {
     rockCache.set(key, a); return a;
   }
   function* makeChunk(cx, cz, lod) {
-    const geo = yield* buildTerrainGeometry(cx, cz, lod === 0 ? 48 : 12);
+    const geo = yield* buildTerrainGeometry(cx, cz, lod === 0 ? 64 : 16);
     yield;
     const m = new THREE.Mesh(geo, terrainMat);
     m.position.set(cx * CS, 0, cz * CS); m.receiveShadow = true; m.castShadow = lod === 0;
@@ -1069,6 +1096,7 @@ function createGame(opts) {
     cam: { yaw: 0, yawOff: 0, pitchOff: 0, fpPitch: 0, zoom: 1, idle: 0, x: 0, y: 3, z: -8 },
     lastBeepO2: 0, lastRefill: false, doorOpen: 0, toast: 0,
     mission: MISSION, clock: CLOCK_START, amb: 40, suit: 22, sunlit: true, tempT: 0, sunU: { x: SUN.x, z: SUN.z }, tanE: 0.4,
+    tankOn: !MISSION, tank: MISSION ? 100 : TANK_START, makerQ: 0, refilling: false, o2Rate: 0, o2Line: 0, homeViaRover: false, respawnT: 0,
     mirrors: { pack: 3, placed: 0 }, tower: { prog: 0, fixed: false, fixT: 0 }, winAt: 0, sparkT: 0
   };
   S.car.y = heightAt(S.car.x, S.car.z);
@@ -1223,6 +1251,26 @@ function createGame(opts) {
   pauseBtn.addEventListener('click', () => setPause(true));
 
   function flash(text) { viewTag.textContent = text; S.viewUntil = performance.now() + 1900; }
+  // spoken one-time tips that teach how to manage oxygen (level 1)
+  const tipsShown = {}; let tipQ = [], tipT = 0;
+  function tip(k) { if (S.mission || tipsShown[k]) return; tipsShown[k] = true; tipQ.push(k); }
+  function updateTips(dt) {
+    tipT -= dt;
+    if (tipT > 0) return;
+    if (tipQ.length) { const k = tipQ.shift(); tipEl.textContent = '💡 ' + tr(k); tipEl.style.opacity = '1'; tipT = 7.5; speakLines([tr(k)]); }
+    else if (tipEl.style.opacity !== '0') tipEl.style.opacity = '0';
+  }
+  // oxygen (%) needed to get back to the base: walk straight home, or walk to the rover and drive
+  function homeNeed() {
+    const k = radStage() >= 2 ? 1.25 : 1, WALK = 4.6, DRIVE = 24, FO = 0.6 * k, CO = 0.35 * k;
+    const c = S.car, dc = Math.max(0, Math.hypot(c.x, c.z) - LAB_RADIUS);
+    S.homeViaRover = false;
+    if (S.mode === 'car') return dc / DRIVE * CO;
+    const f = S.foot, direct = Math.max(0, Math.hypot(f.x, f.z) - LAB_RADIUS) / WALK * FO;
+    const via = S.rv > 0 ? Math.hypot(f.x - c.x, f.z - c.z) / WALK * FO + dc / DRIVE * CO : 1e9;
+    if (via < direct) { S.homeViaRover = true; return via; }
+    return direct;
+  }
   // paid services at the lab: H heals the astronaut, R repairs the rover
   function toggleService(kind) {
     if (S.paused || S.over) return;
@@ -1334,7 +1382,7 @@ function createGame(opts) {
   }
   function interact() {
     const c = context(); if (!c) return;
-    if (c.type === 'enter') { S.mode = 'car'; S.cam.fpPitch = 0; S.cam.yawOff = 0; attachToSeat(true); sfx.beep(300, 0.1, 'square', 0.12); return; }
+    if (c.type === 'enter') { tip('tip_rover'); S.mode = 'car'; S.cam.fpPitch = 0; S.cam.yawOff = 0; attachToSeat(true); sfx.beep(300, 0.1, 'square', 0.12); return; }
     if (c.type === 'exit') {
       S.mode = 'foot'; S.cam.fpPitch = 0; S.cam.yawOff = 0; attachToSeat(false);
       const car = S.car, side = 3.0;
@@ -1355,7 +1403,7 @@ function createGame(opts) {
     const a = S.action; S.action = null;
     if (a.type === 'collect') {
       a.rock.taken = true; a.rock.mesh.visible = false; a.rock.halo.visible = false;
-      S.carried++; a.rock.site.left--; sfx.pick();
+      S.carried++; a.rock.site.left--; sfx.pick(); tip('tip_rock');
       if (a.rock.site.left <= 0) { a.rock.site.beam.material.color.set(0x6b7380); a.rock.site.beam.material.opacity = 0.06; }
     } else if (a.type === 'mirror') {
       a.spot.placed = true; S.mirrors.pack--; S.mirrors.placed++; sfx.chime(); flash(tr('f_mirror', { n: S.mirrors.placed }));
@@ -1365,8 +1413,9 @@ function createGame(opts) {
       const n = Math.min(S.carried, CAP_CARGO - S.cargo); S.carried -= n; S.cargo += n; sfx.pick();
     } else if (a.type === 'store') {
       const n = S.carried + (roverAtBase() ? S.cargo : 0); S.delivered += n; S.carried = 0; if (roverAtBase()) S.cargo = 0; sfx.chime();
-      S.money += n * REWARD; flash(tr('f_earn', { m: n * REWARD }));
-      if (S.delivered >= GOAL) win();
+      S.money += n * REWARD;
+      if (S.tankOn) { S.makerQ += n * ROCK_O2; flash(tr('f_oxy', { o: n * ROCK_O2, m: n * REWARD })); tip('tip_maker'); }
+      else { flash(tr('f_earn', { m: n * REWARD })); if (S.delivered >= GOAL) win(); }
     }
   }
 
@@ -1382,6 +1431,7 @@ function createGame(opts) {
     sfx.drive(0, false);
   }
   function win() {
+    if (S.tankOn) { const m = Math.floor(S.t / 60), sc = Math.floor(S.t % 60); endCard(tr('winT1'), tr('winD1', { n: S.delivered, t: m + ':' + String(sc).padStart(2, '0') }) + ' ' + tr('money') + ': $' + Math.floor(S.money) + '.', true); return; }
     if (S.mission) { const m = Math.floor(S.t / 60), sc = Math.floor(S.t % 60); endCard(tr('mwinT'), tr('mwinD', { t: m + ':' + String(sc).padStart(2, '0') }), true); return; }
     const m = Math.floor(S.t / 60), s = Math.floor(S.t % 60);
     const d = opts.discovery ? opts.discovery.discovery : '';
@@ -1519,17 +1569,43 @@ function createGame(opts) {
       if (sunSin < 0 && !S.mission) radRate *= 0.5;
     }
     S.rad = clamp(S.rad + radRate * dt - (inLab ? 6 * dt : 0), 0, 100);
+    const runK = !carMode && (keys.ShiftLeft || keys.ShiftRight) && fwd > 0 && !S.action ? 1.8 : 1;
+    S.o2Rate = inLab ? 0 : (carMode ? 0.35 : 0.6) * runK * (stage >= 2 ? 1.25 : 1);
+    S.refilling = false;
     if (inLab) {
-      S.o2 = clamp(S.o2 + 12 * dt, 0, 100); S.en = clamp(S.en + 10 * dt, 0, 100);
+      let d = Math.min(12 * dt, 100 - S.o2);
+      if (S.tankOn) d = Math.max(0, Math.min(d, S.tank / REFILL_COST));
+      if (d > 1e-5) { S.o2 += d; S.refilling = true; if (S.tankOn) S.tank = Math.max(0, S.tank - d * REFILL_COST); }
+      S.en = clamp(S.en + 10 * dt, 0, 100);
+      if (S.refilling && S.o2 < 92) tip('tip_refill');
     } else {
-      const runK = !carMode && (keys.ShiftLeft || keys.ShiftRight) && fwd > 0 ? 1.8 : 1;
-      S.o2 = clamp(S.o2 - (carMode ? 0.35 : 0.6) * runK * (stage >= 2 ? 1.25 : 1) * dt, 0, 100);
+      if (S.t > 2) tip('tip_out');
+      if (runK > 1) tip('tip_run');
+      S.o2 = clamp(S.o2 - S.o2Rate * dt, 0, 100);
+      if (S.o2 < 50) tip('tip_half');
       S.en = clamp(S.en - (carMode ? 0.08 + 0.45 * Math.abs(S.car.v) / 34 : 0.1) * dt - (Math.abs(S.amb - 22) * 0.0006 * expo + (S.suit < 10 ? (10 - S.suit) * 0.05 : 0) + (S.suit > 38 ? (S.suit - 38) * 0.06 : 0)) * dt, 0, 100);
       let loss = S.rad * 0.002 + [0, 0.1, 0.35, 0.9][stage];
       if (S.o2 <= 0) loss += 4;
       if (S.suit < 2) loss += (2 - S.suit) * 0.1; else if (S.suit > 46) loss += (S.suit - 46) * 0.15;
       S.hp -= loss * dt; if (loss > 0.4) S.hurtT = 0.25;
     }
+    S.o2Line = inLab ? 0 : Math.min(100, homeNeed() * 1.3 + 3);
+    // ---- base oxygen tank: the oxygen maker turns rocks into air
+    if (S.tankOn) {
+      if (S.makerQ > 0) { const d = Math.min(S.makerQ, MAKER_RATE * dt); S.makerQ -= d; S.tank = Math.min(100, S.tank + d); }
+      if (S.tank < 8) S.tank += 0.12 * dt;                      // emergency backup: very slow
+      if (S.tank >= 99.95 && !S.winAt) S.winAt = S.t + 1.6;
+      S.respawnT -= dt;
+      if (S.respawnT <= 0) {
+        S.respawnT = 1;
+        if (!S.winAt && S.carried === 0 && S.cargo === 0 && S.makerQ <= 0 && rocks.length && rocks.every(r => r.taken)) {
+          rocks.forEach(r => { r.taken = false; r.mesh.visible = true; r.halo.visible = true; });
+          SITES.forEach(si => { si.left = 4; if (si.beam) { si.beam.material.color.set(0x55dfff); si.beam.material.opacity = 0.16; } });
+          flash(tr('f_newRocks'));
+        }
+      }
+    }
+    updateTips(dt);
     // ---- paid services at the lab
     S.svcT -= dt;
     if (S.svc.heal) {
@@ -1550,6 +1626,8 @@ function createGame(opts) {
     const dDoor = Math.hypot(S.foot.x - DOOR.x, S.foot.z - DOOR.z), dCar = Math.hypot(S.car.x - DOOR.x, S.car.z - DOOR.z);
     S.doorOpen = lerp(S.doorOpen, (dDoor < 8 || dCar < 8) ? 1 : 0, 1 - Math.exp(-4 * dt));
     lab.door.position.y = 1.4 + S.doorOpen * 1.95;
+    lab.tankFill.scale.y = Math.max(0.02, S.tank / 100 * 2.28);
+    lab.makerGlow.material.color.set(S.makerQ > 0 ? (Math.sin(S.t * 8) > 0 ? 0xff9a3c : 0xff6a1c) : 0x3a2a22);
     lab.holo.rotation.y = S.t * 0.6; lab.holo.position.y = 1.9 + Math.sin(S.t * 1.5) * 0.08;
 
     // beeps
@@ -1703,9 +1781,14 @@ function createGame(opts) {
     }
     const farFromLab = Math.hypot(f.x, f.z) > 60;
     if (S.mode === 'car') {
+      if (!S.inLab && S.o2Line > 0 && S.o2 < S.o2Line + 8) return { text: tr('obj_home'), tx: DOOR.x, tz: DOOR.z, label: tr('tgt_lab') };
       if (carrying > 0) return { text: tr('obj_return'), tx: DOOR.x, tz: DOOR.z, label: tr('tgt_lab') };
       const s = nearestSite(c.x, c.z);
       return { text: tr('obj_drive'), tx: s.x, tz: s.z, label: tr('site') + ' ' + s.name };
+    }
+    if (!S.inLab && S.o2Line > 0 && S.o2 < S.o2Line + 8) {
+      if (S.mode === 'foot' && S.homeViaRover) return { text: tr('obj_home'), tx: c.x, tz: c.z, label: tr('tgt_rover') };
+      return { text: tr('obj_home'), tx: DOOR.x, tz: DOOR.z, label: tr('tgt_lab') };
     }
     const nr = nearestRock(f.x, f.z);
     if (nr && nr.d < 120 && S.carried < CAP_FOOT) return { text: tr('obj_collect'), tx: nr.r.x, tz: nr.r.z, label: tr('tgt_rock') };
@@ -1764,17 +1847,33 @@ function createGame(opts) {
   const pad2 = n => String(n).padStart(2, '0');
   const towerPct = () => clamp((S.tower.prog + (S.action && S.action.type === 'repair' ? S.action.t : 0)) / TOWER_WORK * 100, 0, 100);
   function updateHud() {
-    const vals = { health: S.hp, oxygen: S.o2, energy: S.en, rover: S.rv, radiation: S.rad };
+    const vals = { health: S.hp, oxygen: S.o2, tank: S.tank, energy: S.en, rover: S.rv, radiation: S.rad };
     BARS.forEach(([k]) => {
       const v = vals[k], b = bar[k];
       dset(b.f, 'width', (Math.round(v * 2) / 2) + '%');
-      dset(b.v, 'text', k === 'radiation' ? Math.round(v) + '% · ' + tr('st_' + ['ok', 'fatigue', 'illness', 'injury'][radStage()]) : Math.round(v) + '%');
-      b.row.classList.toggle('low', k === 'radiation' ? v >= 55 : v < 22);
+      let txt = Math.round(v) + '%';
+      if (k === 'radiation') txt += ' · ' + tr('st_' + ['ok', 'fatigue', 'illness', 'injury'][radStage()]);
+      if (k === 'oxygen') {
+        if (S.refilling) txt += ' · ▲';
+        else if (S.o2Rate > 0) { const sec = Math.floor(S.o2 / S.o2Rate); txt += ' · ' + Math.floor(sec / 60) + ':' + pad2(sec % 60); }
+      }
+      if (k === 'tank' && S.makerQ > 0) txt += ' · ▲';
+      dset(b.v, 'text', txt);
+      b.row.classList.toggle('low', k === 'radiation' ? v >= 55 : k === 'oxygen' ? (v < 22 || (S.o2Line > 0 && v < S.o2Line + 5)) : v < 22);
     });
+    {
+      const ox = bar.oxygen, on = S.o2Line > 0.5 && !S.inLab;
+      dset(ox.mk, 'display', on ? 'block' : 'none'); dset(ox.home, 'display', on ? 'block' : 'none');
+      if (on) {
+        dset(ox.mk, 'left', S.o2Line.toFixed(1) + '%'); dset(ox.mk, 'background', S.o2 < S.o2Line ? '#FF6F6F' : '#ffffff');
+        dset(ox.home, 'text', tr('o2home', { n: Math.ceil(S.o2Line) })); dset(ox.home, 'color', S.o2 < S.o2Line + 10 ? '#FF9D8A' : '#BBBAC6');
+      }
+      dset(inv, 'top', (stats.offsetTop + stats.offsetHeight + 12) + 'px');
+    }
     if (S.mission) {
       dset(inv, 'html', tr('money') + ' <b>$' + Math.floor(S.money) + '</b><br>' + tr('mirrors') + ' <b>' + S.mirrors.placed + ' / 3 ' + tr('placed') + '</b><br>' + tr('mirrors') + ' <b>' + S.mirrors.pack + ' ' + tr('in_pack') + '</b><br>' + tr('tower') + ' <b>' + Math.round(towerPct()) + '%</b>');
     } else {
-      dset(inv, 'html', tr('money') + ' <b>$' + Math.floor(S.money) + '</b><br>' + tr('delivered') + ' <b>' + S.delivered + ' / ' + GOAL + '</b><br>' + tr('carrying') + ' <b>' + S.carried + ' / ' + CAP_FOOT + '</b><br>' + tr('cargo') + ' <b>' + S.cargo + ' / ' + CAP_CARGO + '</b>');
+      dset(inv, 'html', tr('money') + ' <b>$' + Math.floor(S.money) + '</b><br>' + tr('maker') + ' <b>' + (S.makerQ > 0 ? tr('heating', { n: Math.ceil(S.makerQ / ROCK_O2 - 1e-6) }) : tr('idle')) + '</b><br>' + tr('rocks') + ' <b>' + S.delivered + '</b><br>' + tr('carrying') + ' <b>' + S.carried + ' / ' + CAP_FOOT + '</b><br>' + tr('cargo') + ' <b>' + S.cargo + ' / ' + CAP_CARGO + '</b>');
     }
     // clock and temperature
     const hrs = S.clock * 24, hh = Math.floor(hrs), mm = Math.floor((hrs - hh) * 60);
@@ -1787,7 +1886,7 @@ function createGame(opts) {
     dset(envUv, 'color', sc); dset(envBar, 'background', sc); dset(envBar, 'width', Math.round(clamp((S.suit + 50) / 110 * 100, 0, 100)) + '%');
     const o = objective(); dset(objB, 'text', o.text);
     if (S.mission) { dset(objS, 'text', tr('tower') + ': ' + Math.round(towerPct()) + '%'); dset(objP, 'width', towerPct() + '%'); }
-    else { dset(objS, 'text', tr('delivered') + ': ' + S.delivered + ' / ' + GOAL); dset(objP, 'width', (S.delivered / GOAL * 100) + '%'); }
+    else { dset(objS, 'text', tr('obj_fill', { n: Math.floor(S.tank) })); dset(objP, 'width', Math.floor(S.tank) + '%'); }
     const s = subject();
     dset(spB, 'text', String(Math.round(Math.abs(S.mode === 'car' ? S.car.v : S.foot.speed) * 3.6))); dset(spU, 'text', tr('kmh'));
     const dx = o.tx - s.x, dz = o.tz - s.z, d = Math.hypot(dx, dz);
@@ -1808,6 +1907,8 @@ function createGame(opts) {
     const fl = S.flare;
     if (fl.on) { w = tr('w_flare'); red = true; }
     else if (performance.now() < S.hitUntil) { w = tr('w_hit', { d: S.lastDmg }); red = true; }
+    else if (!S.inLab && S.o2Line > 0 && S.o2 < S.o2Line && S.o2 > 0) { w = tr('w_turn', { a: Math.round(S.o2), b: Math.ceil(S.o2Line) }); red = true; }
+    else if (S.tankOn && S.tank < 1 && (S.inLab || S.o2 < 70)) { w = tr('w_tank0'); red = true; }
     else if (fl.warn) w = tr('w_flareSoon', { s: Math.max(1, Math.ceil(fl.next)) });
     else if (S.suit < 2 && !S.inLab) { w = tr('w_cold'); red = true; }
     else if (S.suit > 44 && !S.inLab) { w = tr('w_hot'); red = true; }
@@ -1815,10 +1916,12 @@ function createGame(opts) {
     else if (S.en <= 0 && S.mode === 'car') { w = tr('w_en'); red = true; }
     else if (S.rad >= 55 && !S.inLab) { w = tr('w_rad'); red = true; }
     else if (S.rv < 25 && S.mode === 'car' && !carInLabNow()) { w = tr(S.rv <= 0 ? 'w_rv0' : 'w_rv1'); red = true; }
+    else if (!S.inLab && S.o2Line > 0 && S.o2 < S.o2Line + 10) w = tr('w_soon');
+    else if (S.tankOn && S.tank < 12) w = tr('w_tankLow');
     else if (S.mission && !S.sunlit && S.mirrors.placed < 2 && !S.inLab && S.mode === 'foot') w = tr('w_dark');
     else if (Math.max(Math.abs(s.x), Math.abs(s.z)) > WORLD - 250) { w = tr('w_edge'); }
     dset(warn, 'display', w ? 'block' : 'none'); dset(warn, 'text', w); warn.classList.toggle('red', red);
-    const refilling = S.inLab && (S.o2 < 99.5 || S.en < 99.5) && !w;
+    const refilling = S.inLab && S.refilling && !w;
     dset(msg, 'display', refilling ? 'block' : 'none'); dset(msg, 'text', tr('m_refill'));
     // paid services prompt
     const lines = [];
