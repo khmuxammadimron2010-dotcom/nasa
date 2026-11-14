@@ -1303,11 +1303,24 @@ function createGame(opts) {
   const loadVoices = () => { try { voices = synth.getVoices(); } catch (e) { voices = []; } };
   if (synth) { loadVoices(); try { synth.addEventListener('voiceschanged', loadVoices); } catch (e) { /* ignore */ } }
   const VOICE_PREF = { en: ['en'], uz: ['uz', 'tr', 'ru'], ru: ['ru'] }, VOICE_TAG = { en: 'en-US', uz: 'uz-UZ', ru: 'ru-RU' };
+  // the most natural voice the device has: Edge neural ("Online (Natural)"), Mac Premium / Enhanced downloads, Google voices,
+  // then good classic voices (Samantha, Milena); the Mac novelty voices (Zarvox, Bells, Grandpa...) are never chosen
+  const VOICE_NAMES = { en: /\b(ava|jenny|aria|andrew|emma|brian|zoe|evan|nathan|samantha)\b/i, uz: /\b(madina|sardor)\b/i, ru: /\b(svetlana|dmitry|milena|katya|yuri)\b/i };
+  const VOICE_NOVELTY = /\b(albert|bad news|bahh|bells|boing|bubbles|cellos|wobble|good news|jester|junior|organ|superstar|trinoids|whisper|zarvox|fred|ralph|kathy|eddy|flo|grandma|grandpa|reed|rocko|sandy|shelley)\b/i;
+  const voiceQuality = v => { const n = v.name || ''; return /natural|neural|premium/i.test(n) ? 3 : /enhanced|google/i.test(n) ? 2 : 0; };
   function pickVoice() {
-    // English narration: the Mac/iPhone voice "Samantha" (the classic Siri-style US voice), when the device has it
-    if (lang === 'en') { const sam = voices.find(x => /samantha/i.test(x.name || '') && (x.lang || '').toLowerCase().startsWith('en')); if (sam) return sam; }
-    for (const p of VOICE_PREF[lang]) { const v = voices.find(x => (x.lang || '').toLowerCase().replace('_', '-').startsWith(p)); if (v) return v; }
-    return null;
+    const prefs = VOICE_PREF[lang]; let best = null, bestScore = -Infinity;
+    for (const v of voices) {
+      const vl = (v.lang || '').toLowerCase().replace('_', '-'), pi = prefs.findIndex(p => vl.startsWith(p));
+      if (pi < 0) continue;
+      let s = (prefs.length - pi) * 1000 + voiceQuality(v) * 100;
+      if (VOICE_NAMES[lang].test(v.name || '')) s += 50;
+      if (VOICE_NOVELTY.test(v.name || '')) s -= 400;
+      if (vl === VOICE_TAG[lang].toLowerCase()) s += 10;
+      if (v.localService) s += 1;
+      if (s > bestScore) { best = v; bestScore = s; }
+    }
+    return best;
   }
   function setReadBtn() { const b = ovHelp.querySelector('#rd'); if (b) b.textContent = speaking ? tr('stopRead') : tr('readAloud'); }
   function stopSpeech() {
@@ -1323,7 +1336,7 @@ function createGame(opts) {
       if (i >= lines.length) { speaking = false; setReadBtn(); if (onLine) onLine(-1); return; }
       const u = new SpeechSynthesisUtterance(String(lines[i]).replace(/<[^>]+>/g, ''));
       const v = pickVoice(); if (v) { u.voice = v; u.lang = v.lang; } else u.lang = VOICE_TAG[lang];
-      u.rate = 0.92; u.pitch = v && /samantha/i.test(v.name || '') ? 1 : 1.05; u.volume = clamp(voiceVol * 1.3, 0, 1);
+      u.rate = 0.92; u.pitch = v && (voiceQuality(v) || VOICE_NAMES[lang].test(v.name || '')) ? 1 : 1.05; u.volume = clamp(voiceVol * 1.3, 0, 1);
       u.onstart = () => { if (tok === spkTok && onLine) onLine(i); };
       u.onend = () => say(i + 1);
       u.onerror = () => { if (tok === spkTok) say(i + 1); };
