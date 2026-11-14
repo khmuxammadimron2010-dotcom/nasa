@@ -19,7 +19,7 @@ const JUMP_CAR = 5.0;      // rover take-off speed
 const JUMP_G_CAR = 9.0;    // the heavy rover falls faster than the astronaut
 const CAP_CARGO = 12;       // rover capacity
 const CS = 192;             // terrain chunk size (m)
-const RING = 8;             // chunks loaded around the player (view ~1.5 km)
+const RING = 7;             // chunks loaded around the player (view ~1.3 km)
 const NEAR = 2;             // high-detail ring
 const WORLD = 5000;         // half-size of the playable map (10 km x 10 km)
 const DOOR = { x: 0, z: 19 };
@@ -70,6 +70,23 @@ function labContact(px, pz, rad) {
   return best;
 }
 const SUN = new THREE.Vector3(0.82, 0.34, 0.5).normalize();
+// ---- day / night
+const DAY_LEN = 480;           // seconds of play for one full lunar day
+const CLOCK_START = 0.30;      // game starts in the morning
+const SUN_MAX = 62 * Math.PI / 180;
+const T_NIGHT = -173, T_DAY = 121;   // surface temperature extremes (°C)
+// ---- mission "The Deadly Shadow"
+const SHADOW = { on: false, x: -250, z: 215, R: 88, D: 42 };
+const SH_E = 11 * Math.PI / 180;               // low sun: the crater floor stays in shadow
+const SH_U = (() => { const x = 0.82, z = -0.57, l = Math.hypot(x, z); return { x: x / l, z: z / l }; })();
+const MIR_SPOTS = [-0.4, 0, 0.4].map(th => {
+  const c = Math.cos(th), sn = Math.sin(th), ux = SH_U.x * c - SH_U.z * sn, uz = SH_U.x * sn + SH_U.z * c;
+  return { x: SHADOW.x + ux * SHADOW.R, z: SHADOW.z + uz * SHADOW.R, placed: false };
+});
+const TOWER = { x: SHADOW.x, z: SHADOW.z };
+const TOWER_WORK = 24;         // seconds of repair work needed
+const MIRROR_HEAT = 65;        // °C every mirror adds inside the lit pool
+const POOL_R = 17;
 
 // ----------------------------------------------------------------- strings
 const T = {
@@ -106,7 +123,19 @@ const T = {
     paused: 'PAUSED', resume: 'RESUME', quit: 'BACK TO LEVELS',
     winT: 'Discovery complete!', winD: '{d} You delivered {n} samples in {t}.',
     loseT: 'Mission failed', lose_rad: 'Radiation sickness took the astronaut.', lose_o2: 'The astronaut ran out of oxygen.',
-    again: 'PLAY AGAIN', site: 'Crater', lab: 'LAB'
+    again: 'PLAY AGAIN', site: 'Crater', lab: 'LAB',
+    clock: 'Lunar time', t_out: 'Outside', t_suit: 'Suit', ph_day: 'Day', ph_night: 'Night', ph_dawn: 'Sunrise', ph_dusk: 'Sunset',
+    w_cold: 'SUIT FREEZING — get into sunlight or the mirror beam!', w_hot: 'SUIT OVERHEATING — get into shade or the rover!',
+    w_dark: 'Crater shadow: no air to hold heat — it is −173 °C! Place mirrors on the rim.',
+    lose_cold: 'The astronaut froze in the crater’s shadow.', lose_heat: 'The astronaut overheated in the sunlight.',
+    mirrors: 'Mirrors', tower: 'Tower repair', in_pack: 'in backpack', placed: 'placed',
+    mobj_drive: 'Drive to the dark crater with the broken tower', mobj_mirror: 'Place the mirrors on the crater rim ({n} / 3)',
+    mobj_tower: 'Climb down and repair the tower', tgt_spot: 'Mirror spot', tgt_tower: 'Tower',
+    p_mirror: 'Press E — set up a giant mirror', p_repair: 'Press E — repair the tower (move to pause)',
+    a_mirror: 'Setting up the mirror…', a_repair: 'Repairing the tower…',
+    f_mirror: 'Mirror {n} / 3 is up — sunlight reaches the crater!', f_tower: 'Tower repaired — signal restored!',
+    mhelpGoal: 'THE DEADLY SHADOW. A communication tower broke inside a deep, dark crater. In the sunlight your suit gets dangerously hot; in the crater’s shadow it is −173 °C and your energy and health freeze fast. Place the 3 giant mirrors on the sunny rim (E) so they bounce sunlight down onto the tower, then climb down and repair it while the light keeps you warm. Rest and heal at the base (costs money).',
+    mwinT: 'Tower repaired!', mwinD: 'Mirrors turned the dark crater into a warm work spot and you restored the signal in {t}. The Moon has no air to trap heat: in the Sun it boils (+121 °C), in the shadow it freezes (−173 °C). Earth’s invisible atmosphere is a blanket that keeps our days and nights comfortable.'
   },
   uz: {
     health: 'Salomatlik', oxygen: 'Kislorod', energy: 'Energiya', radiation: 'Radiatsiya', rover: 'Rover',
@@ -141,7 +170,19 @@ const T = {
     paused: 'PAUZA', resume: 'DAVOM ETISH', quit: 'BOSQICHLARGA QAYTISH',
     winT: 'Kashfiyot yakunlandi!', winD: '{d} Siz {t} ichida {n} ta namuna yetkazdingiz.',
     loseT: 'Missiya muvaffaqiyatsiz', lose_rad: 'Nur kasalligi kosmonavtni olib ketdi.', lose_o2: 'Kosmonavtning kislorodi tugadi.',
-    again: 'QAYTA O‘YNASH', site: 'Krater', lab: 'LAB'
+    again: 'QAYTA O‘YNASH', site: 'Krater', lab: 'LAB',
+    clock: 'Oy vaqti', t_out: 'Tashqarida', t_suit: 'Kostyum', ph_day: 'Kunduz', ph_night: 'Tun', ph_dawn: 'Tong', ph_dusk: 'Shom',
+    w_cold: 'KOSTYUM MUZLAYAPTI — quyosh nuriga yoki oyna nuriga chiqing!', w_hot: 'KOSTYUM O‘TA QIZIYAPTI — soyaga yoki roverga o‘ting!',
+    w_dark: 'Krater soyasi: issiqlikni ushlab turadigan havo yo‘q — −173 °C! Qirg‘oqqa oynalar qo‘ying.',
+    lose_cold: 'Kosmonavt krater soyasida muzlab qoldi.', lose_heat: 'Kosmonavt quyosh nurida haddan ziyod qizib ketdi.',
+    mirrors: 'Oynalar', tower: 'Minora ta’miri', in_pack: 'ryukzakda', placed: 'o‘rnatildi',
+    mobj_drive: 'Singan minorali qorong‘i kraterga boring', mobj_mirror: 'Krater qirg‘og‘iga oynalarni o‘rnating ({n} / 3)',
+    mobj_tower: 'Pastga tushib, minorani ta’mirlang', tgt_spot: 'Oyna joyi', tgt_tower: 'Minora',
+    p_mirror: 'E bosing — ulkan oyna o‘rnatish', p_repair: 'E bosing — minorani ta’mirlash (to‘xtatish uchun yuring)',
+    a_mirror: 'Oyna o‘rnatilmoqda…', a_repair: 'Minora ta’mirlanmoqda…',
+    f_mirror: '{n} / 3 oyna tayyor — quyosh nuri kraterga tushdi!', f_tower: 'Minora ta’mirlandi — aloqa tiklandi!',
+    mhelpGoal: 'O‘LIMLI SOYA. Chuqur va qorong‘i krater ichida aloqa minorasi sindi. Quyosh nurida kostyum xavfli darajada qiziydi, krater soyasida esa −173 °C: energiya va salomatlik tez muzlaydi. Quyoshli qirg‘oqqa 3 ta ulkan oynani (E) o‘rnating — ular nurni minoraga qaytaradi. So‘ng pastga tushib, nur isitib turganda minorani ta’mirlang. Bazada dam oling va davolaning (pul evaziga).',
+    mwinT: 'Minora ta’mirlandi!', mwinD: 'Oynalar qorong‘i kraterni iliq ish joyiga aylantirdi va siz aloqani {t} ichida tikladingiz. Oyda issiqlikni ushlab turadigan havo yo‘q: quyoshda +121 °C gacha qiziydi, soyada −173 °C gacha muzlaydi. Yerning ko‘rinmas atmosferasi — kun va tunimizni qulay qiladigan ko‘rpa.'
   },
   ru: {
     health: 'Здоровье', oxygen: 'Кислород', energy: 'Энергия', radiation: 'Радиация', rover: 'Ровер',
@@ -176,7 +217,19 @@ const T = {
     paused: 'ПАУЗА', resume: 'ПРОДОЛЖИТЬ', quit: 'К УРОВНЯМ',
     winT: 'Открытие совершено!', winD: '{d} Вы доставили образцов: {n}, время: {t}.',
     loseT: 'Миссия провалена', lose_rad: 'Лучевая болезнь погубила астронавта.', lose_o2: 'У астронавта закончился кислород.',
-    again: 'ИГРАТЬ СНОВА', site: 'Кратер', lab: 'ЛАБ'
+    again: 'ИГРАТЬ СНОВА', site: 'Кратер', lab: 'ЛАБ',
+    clock: 'Лунное время', t_out: 'Снаружи', t_suit: 'Скафандр', ph_day: 'День', ph_night: 'Ночь', ph_dawn: 'Рассвет', ph_dusk: 'Закат',
+    w_cold: 'СКАФАНДР ЗАМЕРЗАЕТ — выйдите на солнце или в луч зеркала!', w_hot: 'СКАФАНДР ПЕРЕГРЕВАЕТСЯ — уйдите в тень или в ровер!',
+    w_dark: 'Тень кратера: нет воздуха, чтобы удерживать тепло — здесь −173 °C! Поставьте зеркала на кромке.',
+    lose_cold: 'Астронавт замёрз в тени кратера.', lose_heat: 'Астронавт перегрелся на солнце.',
+    mirrors: 'Зеркала', tower: 'Ремонт башни', in_pack: 'в рюкзаке', placed: 'установлено',
+    mobj_drive: 'Езжайте к тёмному кратеру со сломанной башней', mobj_mirror: 'Поставьте зеркала на кромке кратера ({n} / 3)',
+    mobj_tower: 'Спуститесь и почините башню', tgt_spot: 'Место зеркала', tgt_tower: 'Башня',
+    p_mirror: 'Нажмите E — установить гигантское зеркало', p_repair: 'Нажмите E — чинить башню (двигайтесь, чтобы прервать)',
+    a_mirror: 'Установка зеркала…', a_repair: 'Ремонт башни…',
+    f_mirror: 'Зеркало {n} / 3 установлено — свет попал в кратер!', f_tower: 'Башня исправна — связь восстановлена!',
+    mhelpGoal: 'СМЕРТЕЛЬНАЯ ТЕНЬ. В глубоком тёмном кратере сломалась башня связи. На солнце скафандр опасно нагревается, а в тени кратера −173 °C — энергия и здоровье быстро замерзают. Поставьте 3 гигантских зеркала на освещённой кромке (E), чтобы они отразили свет на башню, затем спуститесь и чините её, пока свет вас греет. Отдыхайте и лечитесь на базе (за деньги).',
+    mwinT: 'Башня починена!', mwinD: 'Зеркала превратили тёмный кратер в тёплое рабочее место, и вы восстановили связь за {t}. На Луне нет воздуха, который удерживает тепло: на солнце жара до +121 °C, в тени мороз до −173 °C. Невидимая атмосфера Земли — одеяло, которое делает наши дни и ночи комфортными.'
   }
 };
 const SITE_NAMES = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon'];
@@ -240,10 +293,21 @@ function heightAt(x, z) {
     const dx = x - s.x, dz = z - s.z;
     if (dx * dx + dz * dz < (s.R * 2.4) * (s.R * 2.4)) h += craterH(dx, dz, s.R, s.D);
   }
+  if (SHADOW.on) {
+    const dx = x - SHADOW.x, dz = z - SHADOW.z;
+    if (dx * dx + dz * dz < (SHADOW.R * 2.4) * (SHADOW.R * 2.4)) h += craterH(dx, dz, SHADOW.R, SHADOW.D);
+  }
   // flat building area around the lab
   const d = Math.sqrt(x * x + z * z);
   if (d < 140) h *= smooth(60, 140, d);
   return h;
+}
+
+// is the sun hidden behind terrain? (ux,uz) = horizontal unit vector toward the sun
+function sunBlocked(x, z, ux, uz, tanE) {
+  const y0 = heightAt(x, z) + 1.5;
+  for (let t = 3; t < 280; t *= 1.38) if (heightAt(x + ux * t, z + uz * t) > y0 + t * tanE) return true;
+  return false;
 }
 
 // ----------------------------------------------------------------- textures
@@ -282,6 +346,19 @@ function makeEarthTexture() {
   for (let i = 0; i < 40; i++) { g.beginPath(); g.ellipse(Math.random() * 512, Math.random() * 256, 20 + Math.random() * 60, 4 + Math.random() * 10, Math.random() * 3, 0, 7); g.fill(); }
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
+function makeCloudTexture() {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 256;
+  const g = c.getContext('2d');
+  for (let i = 0; i < 70; i++) { g.fillStyle = 'rgba(255,255,255,' + (0.35 + Math.random() * 0.5) + ')'; g.beginPath(); g.ellipse(Math.random() * 512, 20 + Math.random() * 216, 16 + Math.random() * 50, 3 + Math.random() * 9, (Math.random() - 0.5) * 0.7, 0, 7); g.fill(); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function makeDiscTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.8, 'rgba(255,252,238,1)'); gr.addColorStop(0.94, 'rgba(255,244,200,.55)'); gr.addColorStop(1, 'rgba(255,240,190,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
 function makeGlowTexture(inner, outer) {
   const c = document.createElement('canvas'); c.width = c.height = 128;
   const g = c.getContext('2d'), gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
@@ -291,13 +368,14 @@ function makeGlowTexture(inner, outer) {
 }
 
 // ----------------------------------------------------------------- terrain chunks
-function buildTerrainGeometry(cx, cz, n) {
+function* buildTerrainGeometry(cx, cz, n) {
   const step = CS / n, x0 = cx * CS, z0 = cz * CS, m = n + 3;
   const H = new Float32Array(m * m);
-  for (let j = 0; j < m; j++) for (let i = 0; i < m; i++) H[j * m + i] = heightAt(x0 + (i - 1) * step, z0 + (j - 1) * step);
+  for (let j = 0; j < m; j++) { for (let i = 0; i < m; i++) H[j * m + i] = heightAt(x0 + (i - 1) * step, z0 + (j - 1) * step); if (j % 6 === 5) yield; }
   const gv = (n + 1) * (n + 1), V = gv + 4 * (n + 1), SK = 14;
   const pos = new Float32Array(V * 3), nor = new Float32Array(V * 3), col = new Float32Array(V * 3), uv = new Float32Array(V * 2);
   for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) {
+    if (i === 0 && j % 12 === 11) yield;
     const k = j * (n + 1) + i, h = H[(j + 1) * m + i + 1], x = i * step, z = j * step;
     const hl = H[(j + 1) * m + i], hr = H[(j + 1) * m + i + 2], hu = H[j * m + i + 1], hd = H[(j + 2) * m + i + 1];
     const nx = hl - hr, ny = 2 * step, nz = hu - hd, l = Math.sqrt(nx * nx + ny * ny + nz * nz);
@@ -321,21 +399,22 @@ function buildTerrainGeometry(cx, cz, n) {
     col[dst * 3] = col[src * 3]; col[dst * 3 + 1] = col[src * 3 + 1]; col[dst * 3 + 2] = col[src * 3 + 2];
     uv[dst * 2] = uv[src * 2]; uv[dst * 2 + 1] = uv[src * 2 + 1];
   }
-  const idx = [];
+  const idx = new Uint16Array(n * n * 6 + 4 * n * 6); let ip = 0;
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
     const a = j * (n + 1) + i, b = a + 1, c = a + n + 1, d = c + 1;
-    idx.push(a, c, b, b, c, d);
+    idx[ip++] = a; idx[ip++] = c; idx[ip++] = b; idx[ip++] = b; idx[ip++] = c; idx[ip++] = d;
   }
   for (let side = 0; side < 4; side++) for (let i = 0; i < n; i++) {
     const e0 = side * (n + 1) + i, e1 = e0 + 1;
-    idx.push(edges[e0], gv + e0, edges[e1], edges[e1], gv + e0, gv + e1);
+    idx[ip++] = edges[e0]; idx[ip++] = gv + e0; idx[ip++] = edges[e1]; idx[ip++] = edges[e1]; idx[ip++] = gv + e0; idx[ip++] = gv + e1;
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-  geo.setIndex(idx);
+  geo.setIndex(new THREE.BufferAttribute(idx, 1));
+  yield;
   geo.computeBoundingSphere();
   return geo;
 }
@@ -635,6 +714,10 @@ const CSS = `
 .mg-tgt b{display:block;font-size:13.5px}.mg-tgt span{color:#8ea4c2}
 .mg-inv{position:absolute;left:18px;top:256px;padding:10px 16px;font-size:12.5px;line-height:1.7;width:250px}
 .mg-inv b{color:#7fe3ff;float:right;font-variant-numeric:tabular-nums}
+.mg-env{position:absolute;right:18px;top:344px;width:208px;padding:10px 14px;font-size:12.5px;line-height:1.65}
+.mg-env .clk{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}.mg-env .clk b{font-size:17px;letter-spacing:.06em;font-variant-numeric:tabular-nums}.mg-env .clk span{color:#8ea4c2;font-size:11.5px;letter-spacing:.1em;text-transform:uppercase}
+.mg-env .tr{display:flex;justify-content:space-between;color:#8ea4c2}.mg-env .tr b{color:#eef4ff;font-variant-numeric:tabular-nums}
+.mg-env .tb{height:6px;border-radius:4px;background:rgba(255,255,255,.12);margin-top:5px;overflow:hidden}.mg-env .tb span{display:block;height:100%;border-radius:4px;transition:width .25s linear}
 .mg-svc{position:absolute;left:50%;bottom:150px;transform:translateX(-50%);padding:10px 20px;font-size:14px;font-weight:600;display:none;text-align:center;line-height:1.7}
 .mg-svc kbd{display:inline-block;padding:1px 8px;margin:0 2px;border-radius:6px;background:#ffd877;color:#1b1400;font-weight:800}
 .mg-prompt{position:absolute;left:50%;bottom:90px;transform:translateX(-50%);padding:12px 22px;font-size:15px;font-weight:600;letter-spacing:.03em;display:none;white-space:nowrap}
@@ -680,6 +763,9 @@ function createGame(opts) {
   let lang = opts.lang || 'en';
   const tr = (k, v) => { let s = T[lang][k]; if (v) for (const key in v) s = s.replace('{' + key + '}', v[key]); return s; };
   let destroyed = false, raf = 0;
+  SHADOW.on = opts.mission === 'shadow';
+  const MISSION = SHADOW.on;
+  MIR_SPOTS.forEach(m => { m.placed = false; });
 
   // ---------- DOM
   container.innerHTML = '';
@@ -696,6 +782,14 @@ function createGame(opts) {
     stats.appendChild(r); bar[k] = { row: r, n: r.querySelector('.n'), v: r.querySelector('.v'), f: r.querySelector('.mg-bar span') };
   });
   const inv = el('div', 'mg-inv mg-glass'); root.appendChild(inv);
+  const env = el('div', 'mg-env mg-glass', '<div class="clk"><b></b><span></span></div><div class="tr"><span class="a"></span><b class="av"></b></div><div class="tr"><span class="u"></span><b class="uv"></b></div><div class="tb"><span></span></div>'); root.appendChild(env);
+  const envClk = env.querySelector('.clk b'), envPh = env.querySelector('.clk span'), envAn = env.querySelector('.a'), envAv = env.querySelector('.av'), envUn = env.querySelector('.u'), envUv = env.querySelector('.uv'), envBar = env.querySelector('.tb span');
+  const dcache = new WeakMap();   // only touch the DOM when a value really changed
+  function dset(node, prop, val) {
+    let o = dcache.get(node); if (!o) { o = {}; dcache.set(node, o); }
+    if (o[prop] === val) return; o[prop] = val;
+    if (prop === 'text') node.textContent = val; else if (prop === 'html') node.innerHTML = val; else node.style[prop] = val;
+  }
   const obj = el('div', 'mg-obj mg-glass', '<b></b><small></small><div class="mg-prog"><span></span></div>'); root.appendChild(obj);
   const objB = obj.querySelector('b'), objS = obj.querySelector('small'), objP = obj.querySelector('.mg-prog span');
   const map = el('div', 'mg-map mg-glass', '<canvas width="372" height="372"></canvas><div class="mg-sp"><b>0</b> <span></span></div>'); root.appendChild(map);
@@ -720,7 +814,7 @@ function createGame(opts) {
   function applyDom() {
     BARS.forEach(([k]) => { bar[k].n.textContent = tr(k); });
     pauseBtn.title = tr('paused');
-    ovHelp.innerHTML = '<div class="mg-card mg-glass"><h2>' + tr('helpTitle') + '</h2><p>' + tr('helpGoal') + '</p><ul>' +
+    ovHelp.innerHTML = '<div class="mg-card mg-glass"><h2>' + tr('helpTitle') + '</h2><p>' + tr(MISSION ? 'mhelpGoal' : 'helpGoal') + '</p><ul>' +
       T[lang].help.map(h => '<li>' + h + '</li>').join('') + '</ul><button class="mg-btn pri" type="button">' + tr('begin') + '</button></div>';
     ovHelp.querySelector('button').onclick = () => { ovHelp.style.display = 'none'; sfx.resume(); S.paused = false; };
     ovPause.innerHTML = '<div class="mg-card mg-glass"><h2>' + tr('paused') + '</h2><button class="mg-btn pri" id="r" type="button">' + tr('resume') +
@@ -731,8 +825,9 @@ function createGame(opts) {
   }
 
   // ---------- three.js
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: (window.devicePixelRatio || 1) < 1.5, powerPreference: 'high-performance' });
+  const PR_MAX = Math.min(window.devicePixelRatio || 1, 1.75), PR_MIN = 0.7; let pr = PR_MAX;
+  renderer.setPixelRatio(pr);
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
   const scene = new THREE.Scene();
@@ -741,13 +836,14 @@ function createGame(opts) {
   const camera = new THREE.PerspectiveCamera(62, 1, 0.4, 9000);
 
   const sunLight = new THREE.DirectionalLight(0xfff1dc, 3.4);
-  sunLight.castShadow = true; sunLight.shadow.mapSize.set(2048, 2048);
+  sunLight.castShadow = true; sunLight.shadow.mapSize.set(1536, 1536);
   const sc = sunLight.shadow.camera; sc.left = -70; sc.right = 70; sc.top = 70; sc.bottom = -70; sc.near = 10; sc.far = 420;
   sunLight.shadow.bias = -0.0004; sunLight.shadow.normalBias = 0.35;
   scene.add(sunLight, sunLight.target);
-  scene.add(new THREE.HemisphereLight(0x5a7ab8, 0x2a2a30, 1.0));
-  scene.add(new THREE.AmbientLight(0x303a50, 0.7));
-  const fill = new THREE.DirectionalLight(0x9db8ff, 0.9); fill.position.set(-SUN.x * 100, 60, -SUN.z * 100); scene.add(fill);
+  const hemi = new THREE.HemisphereLight(0x5a7ab8, 0x2a2a30, 1.0); scene.add(hemi);
+  const ambL = new THREE.AmbientLight(0x303a50, 0.7); scene.add(ambL);
+  const fill = new THREE.DirectionalLight(0x9db8ff, 0.9); fill.position.set(-0.55, 0.37, -0.72).multiplyScalar(100); scene.add(fill);   // earthshine
+  const sunDir = SUN.clone(); let sunSin = SUN.y;
 
   initMaterials();
   const detailTex = makeDetailTexture();
@@ -765,11 +861,19 @@ function createGame(opts) {
   const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 1.8, sizeAttenuation: false, fog: false }));
   stars.frustumCulled = false; scene.add(stars);
   const earthTex = makeEarthTexture();
-  const earth = new THREE.Mesh(new THREE.SphereGeometry(330, 40, 24), new THREE.MeshBasicMaterial({ map: earthTex, fog: false }));
+  const earth = new THREE.Mesh(new THREE.SphereGeometry(330, 36, 22), new THREE.MeshBasicMaterial({ map: earthTex, fog: false }));
   earth.position.set(-3300, 2200, -4300); scene.add(earth);
+  const cloudTex = makeCloudTexture();
+  const clouds = new THREE.Mesh(new THREE.SphereGeometry(337, 36, 22), new THREE.MeshBasicMaterial({ map: cloudTex, transparent: true, opacity: 0.85, depthWrite: false, fog: false }));
+  clouds.position.copy(earth.position); scene.add(clouds);
+  const earthGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeGlowTexture('rgba(110,170,255,.55)', 'rgba(80,140,255,.22)'), blending: THREE.AdditiveBlending, fog: false, depthWrite: false }));
+  earthGlow.scale.set(960, 960, 1); earthGlow.position.copy(earth.position); scene.add(earthGlow);
   const sunTex = makeGlowTexture('rgba(255,255,240,1)', 'rgba(255,236,190,.35)');
   const sunSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: sunTex, blending: THREE.AdditiveBlending, fog: false, depthWrite: false }));
   sunSpr.scale.set(1100, 1100, 1); sunSpr.position.copy(SUN).multiplyScalar(5600); scene.add(sunSpr);
+  const discTex = makeDiscTexture();
+  const sunDisc = new THREE.Sprite(new THREE.SpriteMaterial({ map: discTex, fog: false, depthWrite: false, toneMapped: false }));
+  sunDisc.scale.set(230, 230, 1); scene.add(sunDisc);
 
   // lab + rover + astronaut
   const lab = makeLab(); scene.add(lab.group);
@@ -779,7 +883,7 @@ function createGame(opts) {
 
   // sample sites
   const rocks = [];
-  SITES.forEach(s => {
+  (MISSION ? [] : SITES).forEach(s => {
     s.left = 4; s.beam = null;
     const beam = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 420, 14, 1, true),
       new THREE.MeshBasicMaterial({ color: 0x55dfff, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
@@ -815,8 +919,9 @@ function createGame(opts) {
     }
     rockCache.set(key, a); return a;
   }
-  function makeChunk(cx, cz, lod) {
-    const geo = buildTerrainGeometry(cx, cz, lod === 0 ? 48 : 12);
+  function* makeChunk(cx, cz, lod) {
+    const geo = yield* buildTerrainGeometry(cx, cz, lod === 0 ? 48 : 12);
+    yield;
     const m = new THREE.Mesh(geo, terrainMat);
     m.position.set(cx * CS, 0, cz * CS); m.receiveShadow = true; m.castShadow = lod === 0;
     let rocksMesh = null;
@@ -836,6 +941,7 @@ function createGame(opts) {
   function removeChunk(c) {
     scene.remove(c.mesh); c.mesh.geometry.dispose(); if (c.rocks) c.rocks.dispose();
   }
+  let job = null;                    // chunk being built, a few milliseconds per frame
   function planChunks(px, pz, immediate) {
     const pcx = Math.floor(px / CS), pcz = Math.floor(pz / CS);
     const want = new Map();
@@ -845,17 +951,20 @@ function createGame(opts) {
     }
     for (const [k, c] of chunks) if (!want.has(k)) { removeChunk(c); chunks.delete(k); }
     for (const k of rockCache.keys()) if (!want.has(k)) rockCache.delete(k);
+    if (job) { const w = want.get(job.k); if (!w || w.lod !== job.w.lod) job = null; }
     queue = [];
-    for (const [k, w] of want) { const c = chunks.get(k); if (!c || c.lod !== w.lod) queue.push({ k, w }); }
+    for (const [k, w] of want) { const c = chunks.get(k); if ((!c || c.lod !== w.lod) && !(job && job.k === k)) queue.push({ k, w }); }
     queue.sort((a, b) => a.w.d - b.w.d);
     if (immediate) processQueue(1e9);
   }
+  const qStat = { max: 0, calls: 0, built: 0 };
   function processQueue(budgetMs) {
-    const t0 = performance.now();
-    while (queue.length && performance.now() - t0 < budgetMs) {
-      const { k, w } = queue.shift();
-      const old = chunks.get(k); if (old) removeChunk(old);
-      chunks.set(k, makeChunk(w.cx, w.cz, w.lod));
+    const t0 = performance.now(); qStat.calls++;
+    while (performance.now() - t0 < budgetMs) {
+      if (!job) { const q = queue.shift(); if (!q) break; job = { k: q.k, w: q.w, gen: makeChunk(q.w.cx, q.w.cz, q.w.lod) }; }
+      const r = job.gen.next();
+      const dtq = performance.now() - t0; if (budgetMs < 100 && dtq > qStat.max) qStat.max = dtq;
+      if (r.done) { qStat.built++; const old = chunks.get(job.k); if (old) removeChunk(old); chunks.set(job.k, r.value); job = null; }
     }
   }
 
@@ -892,14 +1001,106 @@ function createGame(opts) {
     foot: { x: DOOR.x, z: DOOR.z + 5, yaw: 0, speed: 0, phase: 0, y: 0, h: 0, vh: 0, air: false, landT: 0 },
     car: { x: 24, z: 40, yaw: 0.5, v: 0, steer: 0, y: 0, pitch: 0, roll: 0, h: 0, vh: 0, air: false },
     hp: 100, o2: 100, en: 100, rv: 100, money: START_MONEY, svc: { heal: false, repair: false }, svcT: 0, hitT: 0, hitUntil: 0, lastDmg: 0, shake: 0, smokeT: 0, rad: 0, carried: 0, cargo: 0, delivered: 0,
-    action: null, flare: { next: 70, warn: false, on: false, t: 0 }, shade: false, shadeT: 0, hurtT: 0,
+    action: null, flare: { next: MISSION ? 1e9 : 70, warn: false, on: false, t: 0 }, shade: false, shadeT: 0, hurtT: 0,
     view: 'third', viewUntil: 0, inBase: false, autoFP: false,
     cam: { yaw: 0, yawOff: 0, pitchOff: 0, fpPitch: 0, zoom: 1, idle: 0, x: 0, y: 3, z: -8 },
-    lastBeepO2: 0, lastRefill: false, doorOpen: 0, toast: 0
+    lastBeepO2: 0, lastRefill: false, doorOpen: 0, toast: 0,
+    mission: MISSION, clock: CLOCK_START, amb: 40, suit: 22, sunlit: true, tempT: 0, sunU: { x: SUN.x, z: SUN.z }, tanE: 0.4,
+    mirrors: { pack: 3, placed: 0 }, tower: { prog: 0, fixed: false, fixT: 0 }, winAt: 0, sparkT: 0
   };
   S.car.y = heightAt(S.car.x, S.car.z);
   const keys = {};
   const subject = () => (S.mode === 'car' ? S.car : S.foot);
+
+  // ---------- mission "The Deadly Shadow": broken tower, giant mirrors, pool of reflected light
+  const mis = { tower: null, spots: [], pool: null, light: null, beacon: null, mats: [] };
+  function buildMission() {
+    const mat = (o) => { const m = new THREE.MeshStandardMaterial(o); mis.mats.push(m); return m; };
+    const steel = mat({ color: 0xb9c1cc, metalness: 0.75, roughness: 0.35 });
+    const white = mat({ color: 0xe9edf2, roughness: 0.55, metalness: 0.15 });
+    const lampM = mat({ color: 0x331111, emissive: 0xff3322, emissiveIntensity: 2, roughness: 0.4 });
+    const chrome = mat({ color: 0xe4ecf7, metalness: 1, roughness: 0.06, emissive: 0x6a5530, emissiveIntensity: 0.55 });
+    const frameM = mat({ color: 0x2a2f38, metalness: 0.6, roughness: 0.5 });
+    const ghostM = new THREE.MeshBasicMaterial({ color: 0x55dfff, transparent: true, opacity: 0.3, depthWrite: false }); mis.mats.push(ghostM);
+    const addBeam = (r1, r2, len, color, op) => { const m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }); mis.mats.push(m); return new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, len, 12, 1, true), m); };
+    // the tower
+    const ty = heightAt(TOWER.x, TOWER.z);
+    const g = new THREE.Group(); g.position.set(TOWER.x, ty, TOWER.z);
+    g.add(mesh(new THREE.BoxGeometry(5.5, 0.9, 5.5), white, 0, 0.45, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.28, 0.55, 11, 10), steel, 0, 6.4, 0));
+    for (let i = 0; i < 4; i++) { const t = mesh(new THREE.TorusGeometry(0.66 - i * 0.08, 0.07, 6, 14), steel, 0, 2.2 + i * 2.5, 0); t.rotation.x = Math.PI / 2; g.add(t); }
+    g.add(mesh(new THREE.BoxGeometry(2.0, 1.6, 1.6), white, 2.4, 1.7, 0));
+    const panel = mesh(new THREE.BoxGeometry(2.6, 0.1, 1.6), M.solar, -2.5, 1.7, 0); panel.rotation.z = 0.5; g.add(panel);
+    const top = new THREE.Group(); top.position.set(0, 11.9, 0); g.add(top);
+    const dish = mesh(new THREE.SphereGeometry(2.4, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), white, 0, 1.0, 0); dish.rotation.x = -0.9; dish.material = white.clone(); dish.material.side = THREE.DoubleSide; mis.mats.push(dish.material); top.add(dish);
+    top.add(mesh(new THREE.CylinderGeometry(0.07, 0.07, 4.2, 6), steel, 0, 2.1, 0));
+    const lamp = mesh(new THREE.SphereGeometry(0.3, 10, 8), lampM, 0, 4.3, 0, false); top.add(lamp);
+    const up = addBeam(1.3, 1.3, 300, 0x66ffb0, 0.22); up.position.set(0, 160, 0); up.visible = false; g.add(up);
+    scene.add(g);
+    mis.tower = { g, top, lamp, lampM, up, base: ty };
+    const beacon = addBeam(2.4, 2.4, 420, 0xff6a4d, 0.16); beacon.position.set(TOWER.x, ty + 200, TOWER.z); scene.add(beacon); mis.beacon = beacon;
+    // the three mirror spots on the sunny rim
+    const sd = new THREE.Vector3(SH_U.x * Math.cos(SH_E), Math.sin(SH_E), SH_U.z * Math.cos(SH_E));
+    const target = new THREE.Vector3(TOWER.x, ty + 5, TOWER.z), Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);
+    MIR_SPOTS.forEach(m => {
+      const gy = heightAt(m.x, m.z), P0 = new THREE.Vector3(m.x, gy + 3.6, m.z);
+      const toT = target.clone().sub(P0), L = toT.length(); toT.normalize();
+      const n = sd.clone().add(toT).normalize();                       // mirror normal = bisector of sun and tower directions
+      const qn = new THREE.Quaternion().setFromUnitVectors(Z, n);
+      const real = new THREE.Group(); real.position.set(m.x, gy, m.z);
+      real.add(mesh(new THREE.CylinderGeometry(0.16, 0.26, 3.6, 8), steel, 0, 1.8, 0));
+      const pr_ = new THREE.Group(); pr_.position.y = 3.6; pr_.quaternion.copy(qn); real.add(pr_);
+      pr_.add(mesh(new THREE.BoxGeometry(7.4, 5.4, 0.22), frameM, 0, 0, -0.02));
+      pr_.add(mesh(new THREE.BoxGeometry(7.0, 5.0, 0.12), chrome, 0, 0, 0.1));
+      real.visible = false; scene.add(real);
+      const ghost = new THREE.Group(); ghost.position.set(m.x, gy, m.z);
+      const gp = new THREE.Mesh(new THREE.BoxGeometry(7.0, 5.0, 0.12), ghostM); gp.position.y = 3.6; gp.quaternion.copy(qn); ghost.add(gp);
+      const gs = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.26, 3.6, 8), ghostM); gs.position.y = 1.8; ghost.add(gs);
+      scene.add(ghost);
+      const pole = addBeam(1.4, 1.4, 170, 0xffd877, 0.2); pole.position.set(m.x, gy + 85, m.z); scene.add(pole);
+      const beam = addBeam(3.4, 1.3, L, 0xffe9b0, 0.085); beam.position.copy(P0).add(target).multiplyScalar(0.5); beam.quaternion.setFromUnitVectors(Y, toT); beam.visible = false; scene.add(beam);
+      const glint = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: 0xfff0c0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+      glint.scale.set(18, 18, 1); glint.position.copy(P0); glint.visible = false; scene.add(glint);
+      mis.spots.push({ real, ghost, pole, beam, glint });
+    });
+    // pool of reflected light on the crater floor
+    {
+      const rings = 9, segs = 44, pos = [], col = [], idx = [];
+      pos.push(TOWER.x, ty + 0.5, TOWER.z); col.push(0.9, 0.74, 0.45);
+      for (let r = 1; r <= rings; r++) for (let k = 0; k < segs; k++) {
+        const rr = r / rings * POOL_R, a = k / segs * Math.PI * 2, x = TOWER.x + Math.cos(a) * rr, z = TOWER.z + Math.sin(a) * rr, f = Math.pow(1 - r / rings, 1.4);
+        pos.push(x, heightAt(x, z) + 0.5, z); col.push(0.9 * f, 0.74 * f, 0.45 * f);
+      }
+      for (let k = 0; k < segs; k++) idx.push(0, 1 + k, 1 + (k + 1) % segs);
+      for (let r = 1; r < rings; r++) for (let k = 0; k < segs; k++) {
+        const a = 1 + (r - 1) * segs + k, b = 1 + (r - 1) * segs + (k + 1) % segs, c = a + segs, d = b + segs; idx.push(a, c, b, b, c, d);
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); geo.setIndex(idx);
+      const pm = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, fog: false });
+      mis.mats.push(pm); mis.pool = new THREE.Mesh(geo, pm); mis.pool.visible = false; mis.pool.frustumCulled = false; scene.add(mis.pool);
+    }
+    mis.light = new THREE.PointLight(0xffd9a0, 0, 46, 2); mis.light.position.set(TOWER.x, ty + 9, TOWER.z); scene.add(mis.light);
+  }
+  function updateMission(dt) {
+    if (!S.mission || !mis.tower) return;
+    const T = mis.tower, n = S.mirrors.placed;
+    mis.spots.forEach((sp, i) => {
+      const pl = MIR_SPOTS[i].placed;
+      sp.real.visible = pl; sp.beam.visible = pl; sp.glint.visible = pl;
+      sp.ghost.visible = sp.pole.visible = !pl && S.mirrors.pack > 0;
+    });
+    mis.pool.visible = n > 0; mis.pool.material.opacity = 0.16 + 0.09 * n; mis.light.intensity = n * 110;
+    if (S.tower.fixed) S.tower.fixT += dt;
+    const fix = S.tower.fixed ? smooth(0, 1, S.tower.fixT / 1.6) : 0;
+    T.top.rotation.z = lerp(0.7, 0, fix); T.top.position.x = lerp(0.6, 0, fix);
+    T.lampM.emissive.set(S.tower.fixed ? 0x33ff88 : 0xff3322);
+    T.lampM.emissiveIntensity = S.tower.fixed ? 2.2 : (Math.sin(S.t * 9) > 0 ? 2.5 : 0.15);
+    T.up.visible = S.tower.fixed; T.up.material.opacity = 0.2 + 0.08 * Math.sin(S.t * 4);
+    mis.beacon.material.color.set(S.tower.fixed ? 0x55ff9a : 0xff6a4d);
+    if (!S.tower.fixed) { S.sparkT -= dt; if (S.sparkT <= 0) { S.sparkT = 0.5 + Math.random() * 0.7; puff(TOWER.x + 0.7, T.base + 12.4, TOWER.z, 2, 0.5, 0xffb347, 0.8); } }
+  }
+  if (MISSION) buildMission();
 
   // ---------- helpers
   function toast(text, secs) { msg.textContent = text; msg.style.display = 'block'; S.toast = secs || 3; }
@@ -948,7 +1149,7 @@ function createGame(opts) {
   const onWheel = e => { e.preventDefault(); if (S.view === 'first') return; S.cam.zoom = clamp(S.cam.zoom * (1 + Math.sign(e.deltaY) * 0.1), 0.55, 2.4); };
   const onResize = () => {
     const w = container.clientWidth || window.innerWidth, h = container.clientHeight || window.innerHeight;
-    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+    renderer.setPixelRatio(pr); renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
   };
   const onBlur = () => { for (const k in keys) keys[k] = false; if (!S.over && ovHelp.style.display !== 'flex') setPause(true); };
   window.addEventListener('keydown', onKeyDown); window.addEventListener('keyup', onKeyUp);
@@ -1053,6 +1254,13 @@ function createGame(opts) {
     const f = S.foot, c = S.car;
     if (S.mode === 'car') return Math.abs(c.v) < 3 && !c.air ? { type: 'exit', text: tr('p_exit') } : null;
     if (f.air) return null;
+    if (S.mission) {
+      if (S.mirrors.pack > 0) {
+        let bs = null, bd = 1e9; for (const m of MIR_SPOTS) if (!m.placed) { const d = distTo(m, f.x, f.z); if (d < bd) { bd = d; bs = m; } }
+        if (bs && bd < 6) return { type: 'mirror', spot: bs, text: tr('p_mirror') };
+      }
+      if (!S.tower.fixed && distTo(TOWER, f.x, f.z) < 6.5) return { type: 'repair', text: tr('p_repair') };
+    }
     const nr = nearestRock(f.x, f.z);
     if (nr && nr.d < 3.4 && S.carried < CAP_FOOT) return { type: 'collect', rock: nr.r, text: tr('p_collect') };
     const dRover = distTo(c, f.x, f.z);
@@ -1070,6 +1278,8 @@ function createGame(opts) {
       S.foot.x = car.x + Math.cos(car.yaw) * side; S.foot.z = car.z - Math.sin(car.yaw) * side; S.foot.yaw = car.yaw;
       S.foot.speed = 0; S.foot.y = heightAt(S.foot.x, S.foot.z); S.foot.h = 0; S.foot.vh = 0; S.foot.air = false; sfx.beep(260, 0.1, 'square', 0.12); return;
     }
+    if (c.type === 'mirror') S.action = { type: 'mirror', t: 0, dur: 2.6, spot: c.spot, text: tr('a_mirror') };
+    if (c.type === 'repair') S.action = { type: 'repair', t: 0, dur: Math.max(0.5, TOWER_WORK - S.tower.prog), text: tr('a_repair') };
     if (c.type === 'collect') S.action = { type: 'collect', t: 0, dur: 1.4, rock: c.rock, text: tr('a_collect') };
     if (c.type === 'load') S.action = { type: 'load', t: 0, dur: 1.2, text: tr('a_load') };
     if (c.type === 'store') S.action = { type: 'store', t: 0, dur: 2.0, text: tr('a_store') };
@@ -1084,6 +1294,10 @@ function createGame(opts) {
       a.rock.taken = true; a.rock.mesh.visible = false; a.rock.halo.visible = false;
       S.carried++; a.rock.site.left--; sfx.pick();
       if (a.rock.site.left <= 0) { a.rock.site.beam.material.color.set(0x6b7380); a.rock.site.beam.material.opacity = 0.06; }
+    } else if (a.type === 'mirror') {
+      a.spot.placed = true; S.mirrors.pack--; S.mirrors.placed++; sfx.chime(); flash(tr('f_mirror', { n: S.mirrors.placed }));
+    } else if (a.type === 'repair') {
+      S.tower.prog = TOWER_WORK; S.tower.fixed = true; S.tower.fixT = 0; sfx.chime(); flash(tr('f_tower')); S.winAt = S.t + 2.8;
     } else if (a.type === 'load') {
       const n = Math.min(S.carried, CAP_CARGO - S.cargo); S.carried -= n; S.cargo += n; sfx.pick();
     } else if (a.type === 'store') {
@@ -1104,6 +1318,7 @@ function createGame(opts) {
     sfx.drive(0, false);
   }
   function win() {
+    if (S.mission) { const m = Math.floor(S.t / 60), sc = Math.floor(S.t % 60); endCard(tr('mwinT'), tr('mwinD', { t: m + ':' + String(sc).padStart(2, '0') }), true); return; }
     const m = Math.floor(S.t / 60), s = Math.floor(S.t % 60);
     const d = opts.discovery ? opts.discovery.discovery : '';
     endCard(tr('winT'), tr('winD', { d, n: S.delivered, t: m + ':' + String(s).padStart(2, '0') }) + ' ' + tr('money') + ': $' + Math.floor(S.money) + '.', true);
@@ -1115,6 +1330,8 @@ function createGame(opts) {
 
   function update(dt) {
     S.t += dt;
+    if (!S.mission) S.clock = (S.clock + dt / DAY_LEN) % 1;
+    updateSun();
     const f = S.foot, c = S.car, stage = radStage();
     const stageSpeed = [1, 0.88, 0.72, 0.5][stage];
     const pos = subject();
@@ -1124,6 +1341,9 @@ function createGame(opts) {
     const fwd = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
     const turn = (keys.KeyA || keys.ArrowLeft ? 1 : 0) - (keys.KeyD || keys.ArrowRight ? 1 : 0);
     if (S.mode === 'foot') {
+      if (S.action && S.action.type === 'repair' && (keys.KeyW || keys.KeyS || keys.KeyA || keys.KeyD || keys.ArrowUp || keys.ArrowDown || keys.ArrowLeft || keys.ArrowRight || keys.Space)) {
+        S.tower.prog += S.action.t; S.action = null;          // walking away pauses the repair
+      }
       if (S.action) {
         S.action.t += dt; if (S.action.t >= S.action.dur) finishAction();
         f.speed = lerp(f.speed, 0, 1 - Math.exp(-10 * dt));
@@ -1207,6 +1427,24 @@ function createGame(opts) {
       }
     }
 
+    // ---- temperature: sunlight / shadow / mirrors -> surroundings -> suit
+    S.tempT -= dt;
+    if (S.tempT <= 0) {
+      S.tempT = 0.2;
+      const inCrater = !S.mission || Math.hypot(cur.x - TOWER.x, cur.z - TOWER.z) < SHADOW.R * 1.1;
+      S.sunlit = sunSin > 0.005 && !(inCrater && sunBlocked(cur.x, cur.z, S.sunU.x, S.sunU.z, S.tanE));
+    }
+    let ambT = !S.sunlit ? T_NIGHT : S.mission ? T_DAY : T_NIGHT + (T_DAY - T_NIGHT) * smooth(-0.02, 0.5, sunSin);
+    if (S.mission && !S.sunlit && S.mirrors.placed > 0) ambT += S.mirrors.placed * MIRROR_HEAT * (1 - smooth(POOL_R * 0.55, POOL_R * 1.1, Math.hypot(cur.x - TOWER.x, cur.z - TOWER.z)));
+    S.amb += (ambT - S.amb) * (1 - Math.exp(-(S.mission ? 1.8 : 0.9) * dt));
+    const expo = S.mode === 'car' ? 0.4 : 1;
+    {
+      let sT, sR;
+      if (inLab) { sT = 22; sR = 1.2; }
+      else { sT = 22 + (S.amb - 22) * 0.3 * expo * (S.mission ? 1 : S.en > 0 ? 0.18 : 1); sR = sT < S.suit ? 0.38 : 0.13; }
+      S.suit += (sT - S.suit) * (1 - Math.exp(-sR * dt));
+    }
+
     // ---- vitals
     let radRate = 0;
     const carMode = S.mode === 'car';
@@ -1214,6 +1452,7 @@ function createGame(opts) {
       radRate = carMode ? 0.22 : 0.55;
       if (S.shade) radRate *= 0.6;
       if (fl.on) radRate *= 3.5;
+      if (sunSin < 0 && !S.mission) radRate *= 0.5;
     }
     S.rad = clamp(S.rad + radRate * dt - (inLab ? 6 * dt : 0), 0, 100);
     if (inLab) {
@@ -1221,9 +1460,10 @@ function createGame(opts) {
     } else {
       const runK = !carMode && (keys.ShiftLeft || keys.ShiftRight) && fwd > 0 ? 1.8 : 1;
       S.o2 = clamp(S.o2 - (carMode ? 0.35 : 0.6) * runK * (stage >= 2 ? 1.25 : 1) * dt, 0, 100);
-      S.en = clamp(S.en - (carMode ? 0.08 + 0.45 * Math.abs(S.car.v) / 34 : 0.1) * dt, 0, 100);
+      S.en = clamp(S.en - (carMode ? 0.08 + 0.45 * Math.abs(S.car.v) / 34 : 0.1) * dt - (Math.abs(S.amb - 22) * 0.0006 * expo + (S.suit < 10 ? (10 - S.suit) * 0.05 : 0) + (S.suit > 38 ? (S.suit - 38) * 0.06 : 0)) * dt, 0, 100);
       let loss = S.rad * 0.002 + [0, 0.1, 0.35, 0.9][stage];
       if (S.o2 <= 0) loss += 4;
+      if (S.suit < 2) loss += (2 - S.suit) * 0.1; else if (S.suit > 46) loss += (S.suit - 46) * 0.15;
       S.hp -= loss * dt; if (loss > 0.4) S.hurtT = 0.25;
     }
     // ---- paid services at the lab
@@ -1240,7 +1480,7 @@ function createGame(opts) {
       else if (d <= 1e-4) { S.svc.repair = false; flash(tr('f_broke')); }
       else { S.rv += d; S.money -= d * REPAIR_COST; if (S.svcT <= 0) { sfx.beep(520, 0.04, 'square', 0.04); S.svcT = 0.22; } }
     }
-    if (S.hp <= 0) { S.hp = 0; lose(S.o2 <= 0 ? 'lose_o2' : 'lose_rad'); return; }
+    if (S.hp <= 0) { S.hp = 0; lose(S.suit < 0 ? 'lose_cold' : S.suit > 44 ? 'lose_heat' : S.o2 <= 0 ? 'lose_o2' : 'lose_rad'); return; }
 
     // lab door
     const dDoor = Math.hypot(S.foot.x - DOOR.x, S.foot.z - DOOR.z), dCar = Math.hypot(S.car.x - DOOR.x, S.car.z - DOOR.z);
@@ -1258,6 +1498,35 @@ function createGame(opts) {
     const inside = S.mode === 'foot' && inBuilding(pos.x, pos.z);
     if (!S.inBase && inside) { S.inBase = true; if (S.view === 'third') { setView('first'); S.autoFP = true; } }
     else if (S.inBase && !inside) { S.inBase = false; if (S.autoFP) { setView('third'); S.autoFP = false; } }
+    updateMission(dt);
+    if (S.winAt && S.t >= S.winAt) { S.winAt = 0; win(); }
+  }
+
+  // ---------- sun, light, sky
+  const sunCol = new THREE.Color(), sunLowC = new THREE.Color(0xff9a5c), sunHighC = new THREE.Color(0xfff1dc);
+  function updateSun() {
+    let e, ux, uz;
+    if (S.mission) { e = SH_E; ux = SH_U.x; uz = SH_U.z; }
+    else { e = SUN_MAX * Math.sin(Math.PI * 2 * (S.clock - 0.25)); const az = 0.9 + Math.PI * 2 * S.clock; ux = Math.sin(az); uz = Math.cos(az); }
+    const ce = Math.cos(e); sunSin = Math.sin(e);
+    sunDir.set(ux * ce, sunSin, uz * ce); S.sunU.x = ux; S.sunU.z = uz; S.tanE = Math.tan(Math.max(e, 0.01));
+    const day = smooth(-0.03, 0.07, sunSin), lo = 0.55 + 0.45 * smooth(0.05, 0.5, sunSin);
+    sunLight.intensity = 3.4 * day * lo;
+    sunCol.copy(sunLowC).lerp(sunHighC, smooth(0.02, 0.35, sunSin)); if (S.flare.on) sunCol.set(0xffb894);
+    sunLight.color.copy(sunCol);
+    hemi.intensity = 0.8 + 0.2 * day; ambL.intensity = 0.62 + 0.1 * day; fill.intensity = 0.6 + 0.3 * (1 - day);
+    renderer.shadowMap.autoUpdate = sunSin > 0.01;               // no shadow pass at night
+    sunSpr.visible = sunSin > -0.06; sunDisc.visible = sunSin > -0.012; sunSpr.material.opacity = 0.45 + 0.55 * day;
+    stars.rotation.y = -S.clock * Math.PI * 2;
+  }
+  function syncSky(tx, ty, tz) {
+    sunLight.position.set(tx + sunDir.x * 220, ty + sunDir.y * 220, tz + sunDir.z * 220);
+    sunLight.target.position.set(tx, ty, tz); sunLight.target.updateMatrixWorld();
+    const cp = camera.position;
+    stars.position.copy(cp);
+    earth.position.set(cp.x - 3300, 2200, cp.z - 4300); clouds.position.copy(earth.position); earthGlow.position.copy(earth.position);
+    sunSpr.position.set(cp.x + sunDir.x * 5600, sunDir.y * 5600, cp.z + sunDir.z * 5600);
+    sunDisc.position.set(cp.x + sunDir.x * 5580, sunDir.y * 5580, cp.z + sunDir.z * 5580);
   }
 
   // ---------- visuals
@@ -1333,12 +1602,7 @@ function createGame(opts) {
       camera.lookAt(ex + Math.sin(yaw) * cp, ey + Math.sin(p), ez + Math.cos(yaw) * cp);
       cam.x = ex; cam.y = ey; cam.z = ez; cam.yaw = yaw;
       if (S.shake > 0.01) { camera.position.x += (Math.random() - 0.5) * S.shake * 0.35; camera.position.y += (Math.random() - 0.5) * S.shake * 0.35; }
-      const tx = s.x, ty = s.y + 1.5, tz = s.z;
-      sunLight.position.set(tx + SUN.x * 220, ty + SUN.y * 220, tz + SUN.z * 220);
-      sunLight.target.position.set(tx, ty, tz); sunLight.target.updateMatrixWorld();
-      stars.position.copy(camera.position);
-      earth.position.set(camera.position.x - 3300, 2200, camera.position.z - 4300);
-      sunSpr.position.set(camera.position.x + SUN.x * 5600, SUN.y * 5600, camera.position.z + SUN.z * 5600);
+      syncSky(s.x, s.y + 1.5, s.z);
       return;
     }
     const targetYaw = s.yaw + cam.yawOff;
@@ -1355,17 +1619,24 @@ function createGame(opts) {
     camera.lookAt(tx + Math.sin(cam.yaw) * 2, ty + 0.3, tz + Math.cos(cam.yaw) * 2);
     if (S.shake > 0.01) camera.position.set(cam.x + (Math.random() - 0.5) * S.shake * 0.5, cam.y + (Math.random() - 0.5) * S.shake * 0.5, cam.z + (Math.random() - 0.5) * S.shake * 0.4);
     // light & sky follow
-    sunLight.position.set(tx + SUN.x * 220, ty + SUN.y * 220, tz + SUN.z * 220);
-    sunLight.target.position.set(tx, ty, tz); sunLight.target.updateMatrixWorld();
-    stars.position.copy(camera.position);
-    earth.position.set(camera.position.x - 3300, 2200, camera.position.z - 4300);
-    sunSpr.position.set(camera.position.x + SUN.x * 5600, SUN.y * 5600, camera.position.z + SUN.z * 5600);
+    syncSky(tx, ty, tz);
   }
 
   // ---------- HUD
   let hudT = 0, mapT = 0;
   function objective() {
     const f = S.foot, c = S.car, carrying = S.carried + S.cargo;
+    if (S.mission) {
+      let tx, tz, text, label;
+      if (S.mirrors.pack > 0) {
+        let bs = MIR_SPOTS[0], bd = 1e9; const sj = subject();
+        for (const m of MIR_SPOTS) if (!m.placed) { const d = Math.hypot(m.x - sj.x, m.z - sj.z); if (d < bd) { bd = d; bs = m; } }
+        tx = bs.x; tz = bs.z; label = tr('tgt_spot'); text = (S.mode === 'car' || bd > 150) ? tr('mobj_drive') : tr('mobj_mirror', { n: S.mirrors.placed });
+      } else if (!S.tower.fixed) { tx = TOWER.x; tz = TOWER.z; label = tr('tgt_tower'); text = tr('mobj_tower'); }
+      else return { text: tr('f_tower'), tx: DOOR.x, tz: DOOR.z, label: tr('tgt_lab') };
+      if (S.mode === 'foot' && Math.hypot(f.x - tx, f.z - tz) > 150 && distTo(c, f.x, f.z) < Math.hypot(f.x - tx, f.z - tz)) return { text: tr('obj_getRover'), tx: c.x, tz: c.z, label: tr('tgt_rover') };
+      return { text, tx, tz, label };
+    }
     const farFromLab = Math.hypot(f.x, f.z) > 60;
     if (S.mode === 'car') {
       if (carrying > 0) return { text: tr('obj_return'), tx: DOOR.x, tz: DOOR.z, label: tr('tgt_lab') };
@@ -1390,7 +1661,7 @@ function createGame(opts) {
     return best;
   }
   function drawMap() {
-    const w = 372, h = 186 * 2, R = 2200, cx = w / 2, cy = h / 2, k = (w / 2 - 6) / R;
+    const w = 372, h = 186 * 2, R = S.mission ? 700 : 2200, cx = w / 2, cy = h / 2, k = (w / 2 - 6) / R;
     const s = subject();
     mctx.clearRect(0, 0, w, h);
     mctx.save(); mctx.beginPath(); mctx.arc(cx, cy, cx - 2, 0, 7); mctx.clip();
@@ -1404,7 +1675,11 @@ function createGame(opts) {
     for (let r = 1; r <= 3; r++) { mctx.beginPath(); mctx.arc(cx, cy, (cx - 6) * r / 3, 0, 7); mctx.stroke(); }
     mctx.beginPath(); mctx.moveTo(cx, 4); mctx.lineTo(cx, h - 4); mctx.moveTo(4, cy); mctx.lineTo(w - 4, cy); mctx.stroke();
     // sites
-    SITES.forEach(si => {
+    if (S.mission) {
+      mctx.beginPath(); mctx.arc(mx(TOWER.x), mz(TOWER.z), SHADOW.R * k, 0, 7); mctx.fillStyle = 'rgba(10,16,40,.8)'; mctx.fill(); mctx.strokeStyle = '#ff8a6a'; mctx.lineWidth = 2; mctx.stroke();
+      MIR_SPOTS.forEach(m => { mctx.fillStyle = m.placed ? '#6ee7a0' : '#ffd877'; mctx.fillRect(mx(m.x) - 3, mz(m.z) - 3, 6, 6); });
+      mctx.fillStyle = S.tower.fixed ? '#6ee7a0' : '#ff6a4d'; mctx.beginPath(); mctx.arc(mx(TOWER.x), mz(TOWER.z), 4, 0, 7); mctx.fill();
+    } else SITES.forEach(si => {
       mctx.beginPath(); mctx.arc(mx(si.x), mz(si.z), Math.max(5, si.R * k), 0, 7);
       mctx.fillStyle = si.left > 0 ? 'rgba(255,200,90,.28)' : 'rgba(150,160,175,.18)'; mctx.fill();
       mctx.strokeStyle = si.left > 0 ? '#ffc65a' : '#7d8794'; mctx.lineWidth = 2; mctx.stroke();
@@ -1421,30 +1696,48 @@ function createGame(opts) {
     mctx.fillStyle = '#eef4ff'; mctx.font = 'bold 18px sans-serif'; mctx.textAlign = 'center'; mctx.fillText('N', cx, 20);
   }
   const carInLabNow = () => Math.hypot(S.car.x, S.car.z) < LAB_RADIUS;
+  const fmtT = v => (v > 0.5 ? '+' : v < -0.5 ? '−' : '') + Math.abs(Math.round(v)) + ' °C';
+  const pad2 = n => String(n).padStart(2, '0');
+  const towerPct = () => clamp((S.tower.prog + (S.action && S.action.type === 'repair' ? S.action.t : 0)) / TOWER_WORK * 100, 0, 100);
   function updateHud() {
     const vals = { health: S.hp, oxygen: S.o2, energy: S.en, rover: S.rv, radiation: S.rad };
     BARS.forEach(([k]) => {
       const v = vals[k], b = bar[k];
-      b.f.style.width = v + '%';
-      b.v.textContent = k === 'radiation' ? Math.round(v) + '% · ' + tr('st_' + ['ok', 'fatigue', 'illness', 'injury'][radStage()]) : Math.round(v) + '%';
+      dset(b.f, 'width', (Math.round(v * 2) / 2) + '%');
+      dset(b.v, 'text', k === 'radiation' ? Math.round(v) + '% · ' + tr('st_' + ['ok', 'fatigue', 'illness', 'injury'][radStage()]) : Math.round(v) + '%');
       b.row.classList.toggle('low', k === 'radiation' ? v >= 55 : v < 22);
     });
-    inv.innerHTML = tr('money') + ' <b>$' + Math.floor(S.money) + '</b><br>' + tr('delivered') + ' <b>' + S.delivered + ' / ' + GOAL + '</b><br>' + tr('carrying') + ' <b>' + S.carried + ' / ' + CAP_FOOT + '</b><br>' + tr('cargo') + ' <b>' + S.cargo + ' / ' + CAP_CARGO + '</b>';
-    const o = objective(); objB.textContent = o.text;
-    objS.textContent = tr('delivered') + ': ' + S.delivered + ' / ' + GOAL;
-    objP.style.width = (S.delivered / GOAL * 100) + '%';
+    if (S.mission) {
+      dset(inv, 'html', tr('money') + ' <b>$' + Math.floor(S.money) + '</b><br>' + tr('mirrors') + ' <b>' + S.mirrors.placed + ' / 3 ' + tr('placed') + '</b><br>' + tr('mirrors') + ' <b>' + S.mirrors.pack + ' ' + tr('in_pack') + '</b><br>' + tr('tower') + ' <b>' + Math.round(towerPct()) + '%</b>');
+    } else {
+      dset(inv, 'html', tr('money') + ' <b>$' + Math.floor(S.money) + '</b><br>' + tr('delivered') + ' <b>' + S.delivered + ' / ' + GOAL + '</b><br>' + tr('carrying') + ' <b>' + S.carried + ' / ' + CAP_FOOT + '</b><br>' + tr('cargo') + ' <b>' + S.cargo + ' / ' + CAP_CARGO + '</b>');
+    }
+    // clock and temperature
+    const hrs = S.clock * 24, hh = Math.floor(hrs), mm = Math.floor((hrs - hh) * 60);
+    dset(envClk, 'text', pad2(hh) + ':' + pad2(mm));
+    dset(envPh, 'text', tr(sunSin > 0.15 ? 'ph_day' : sunSin < -0.06 ? 'ph_night' : S.clock < 0.5 ? 'ph_dawn' : 'ph_dusk'));
+    dset(envAn, 'text', tr('t_out')); dset(envUn, 'text', tr('t_suit'));
+    dset(envAv, 'text', fmtT(S.amb)); dset(envUv, 'text', fmtT(S.suit));
+    dset(envAv, 'color', S.amb > 60 ? '#ffb27a' : S.amb < -20 ? '#8fd0ff' : '#eef4ff');
+    const sc = S.suit < 2 ? '#7fb8ff' : S.suit > 44 ? '#ff7a5c' : '#6ee7a0';
+    dset(envUv, 'color', sc); dset(envBar, 'background', sc); dset(envBar, 'width', Math.round(clamp((S.suit + 50) / 110 * 100, 0, 100)) + '%');
+    const o = objective(); dset(objB, 'text', o.text);
+    if (S.mission) { dset(objS, 'text', tr('tower') + ': ' + Math.round(towerPct()) + '%'); dset(objP, 'width', towerPct() + '%'); }
+    else { dset(objS, 'text', tr('delivered') + ': ' + S.delivered + ' / ' + GOAL); dset(objP, 'width', (S.delivered / GOAL * 100) + '%'); }
     const s = subject();
-    spB.textContent = Math.round(Math.abs(S.mode === 'car' ? S.car.v : S.foot.speed) * 3.6); spU.textContent = tr('kmh');
+    dset(spB, 'text', String(Math.round(Math.abs(S.mode === 'car' ? S.car.v : S.foot.speed) * 3.6))); dset(spU, 'text', tr('kmh'));
     const dx = o.tx - s.x, dz = o.tz - s.z, d = Math.hypot(dx, dz);
     const bearing = Math.atan2(dx, dz), rel = angDiff(S.cam.yaw, bearing);
-    arrow.style.transform = 'rotate(' + (-rel * 180 / Math.PI) + 'deg)';
-    tgtB.textContent = o.label; tgtS.textContent = d >= 1000 ? (d / 1000).toFixed(2) + ' km' : Math.round(d) + ' m';
+    dset(arrow, 'transform', 'rotate(' + Math.round(-rel * 180 / Math.PI) + 'deg)');
+    dset(tgtB, 'text', o.label); dset(tgtS, 'text', d >= 1000 ? (d / 1000).toFixed(2) + ' km' : Math.round(d) + ' m');
     // prompt / action
     const ctx = context();
-    if (S.action) { action.style.display = 'block'; actT.textContent = S.action.text; actP.style.width = (S.action.t / S.action.dur * 100) + '%'; prompt.style.display = 'none'; }
-    else {
-      action.style.display = 'none';
-      if (ctx) { prompt.innerHTML = ctx.text.replace(/E/, '<kbd>E</kbd>'); prompt.style.display = 'block'; } else prompt.style.display = 'none';
+    if (S.action) {
+      dset(action, 'display', 'block'); dset(actT, 'text', S.action.text);
+      dset(actP, 'width', (S.action.type === 'repair' ? towerPct() : S.action.t / S.action.dur * 100) + '%'); dset(prompt, 'display', 'none');
+    } else {
+      dset(action, 'display', 'none');
+      if (ctx) { dset(prompt, 'html', ctx.text.replace(/E/, '<kbd>E</kbd>')); dset(prompt, 'display', 'block'); } else dset(prompt, 'display', 'none');
     }
     // warnings
     let w = '', red = false;
@@ -1452,41 +1745,52 @@ function createGame(opts) {
     if (fl.on) { w = tr('w_flare'); red = true; }
     else if (performance.now() < S.hitUntil) { w = tr('w_hit', { d: S.lastDmg }); red = true; }
     else if (fl.warn) w = tr('w_flareSoon', { s: Math.max(1, Math.ceil(fl.next)) });
+    else if (S.suit < 2 && !S.inLab) { w = tr('w_cold'); red = true; }
+    else if (S.suit > 44 && !S.inLab) { w = tr('w_hot'); red = true; }
     else if (S.o2 < 20 && !S.inLab) { w = tr('w_o2'); red = true; }
     else if (S.en <= 0 && S.mode === 'car') { w = tr('w_en'); red = true; }
     else if (S.rad >= 55 && !S.inLab) { w = tr('w_rad'); red = true; }
     else if (S.rv < 25 && S.mode === 'car' && !carInLabNow()) { w = tr(S.rv <= 0 ? 'w_rv0' : 'w_rv1'); red = true; }
+    else if (S.mission && !S.sunlit && S.mirrors.placed < 2 && !S.inLab && S.mode === 'foot') w = tr('w_dark');
     else if (Math.max(Math.abs(s.x), Math.abs(s.z)) > WORLD - 250) { w = tr('w_edge'); }
-    warn.style.display = w ? 'block' : 'none'; warn.textContent = w; warn.classList.toggle('red', red);
+    dset(warn, 'display', w ? 'block' : 'none'); dset(warn, 'text', w); warn.classList.toggle('red', red);
     const refilling = S.inLab && (S.o2 < 99.5 || S.en < 99.5) && !w;
-    msg.style.display = refilling ? 'block' : 'none'; msg.textContent = tr('m_refill');
+    dset(msg, 'display', refilling ? 'block' : 'none'); dset(msg, 'text', tr('m_refill'));
     // paid services prompt
     const lines = [];
     if (nearMed() && S.hp < 99.5) lines.push(S.svc.heal ? tr('s_healing') : tr('s_heal', { c: '$' + Math.ceil((100 - S.hp) * HEAL_COST) }));
     if (nearWorkshop() && roverAtBase() && S.rv < 99.5) lines.push(S.svc.repair ? tr('s_repairing') : tr('s_repair', { c: '$' + Math.ceil((100 - S.rv) * REPAIR_COST) }));
-    svc.innerHTML = lines.map(l => '<div>' + l + '</div>').join(''); svc.style.display = lines.length && !S.action ? 'block' : 'none';
-    viewTag.style.opacity = performance.now() < S.viewUntil ? 1 : 0;
-    vig.style.opacity = fl.on ? (0.55 + 0.25 * Math.sin(S.t * 6)) : 0;
-    S.hurtT = Math.max(0, S.hurtT - 0.016); hurt.style.opacity = S.hurtT > 0 ? Math.min(1, S.hurtT * 3) : 0;
-    // light flicker during flare
-    sunLight.color.set(fl.on ? 0xffb894 : 0xfff1dc);
+    dset(svc, 'html', lines.map(l => '<div>' + l + '</div>').join('')); dset(svc, 'display', lines.length && !S.action ? 'block' : 'none');
+    dset(viewTag, 'opacity', performance.now() < S.viewUntil ? '1' : '0');
+    dset(vig, 'opacity', fl.on ? String(Math.round((0.55 + 0.25 * Math.sin(S.t * 6)) * 20) / 20) : '0');
+    S.hurtT = Math.max(0, S.hurtT - 0.1); dset(hurt, 'opacity', S.hurtT > 0 ? String(Math.round(Math.min(1, S.hurtT * 3) * 10) / 10) : '0');
   }
 
   // ---------- loop
-  let last = performance.now(), px0 = 1e9, pz0 = 1e9;
+  let last = performance.now(), px0 = 1e9, pz0 = 1e9, ema = 16, resT = 2, goodRuns = 0;
   function frame(now) {
     if (destroyed) return;
     raf = requestAnimationFrame(frame);
-    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    const raw = now - last, dt = Math.min(0.05, raw / 1000); last = now;
     if (!S.paused && !S.over) update(dt);
     poseCharacters(dt);
-    if (!S.paused) updateDust(dt);
+    if (!S.paused) { updateDust(dt); earth.rotation.y += dt * 0.16; clouds.rotation.y += dt * 0.21; }
     const s = subject();
     if (Math.floor(s.x / CS) !== Math.floor(px0 / CS) || Math.floor(s.z / CS) !== Math.floor(pz0 / CS)) { planChunks(s.x, s.z, false); px0 = s.x; pz0 = s.z; }
-    processQueue(5);
+    processQueue(3.5);
     updateCamera(dt);
-    hudT -= dt; if (hudT <= 0) { hudT = 0.05; updateHud(); }
-    mapT -= dt; if (mapT <= 0) { mapT = 0.15; drawMap(); }
+    hudT -= dt; if (hudT <= 0) { hudT = S.paused ? 0.3 : 0.1; updateHud(); }
+    mapT -= dt; if (mapT <= 0) { mapT = S.paused ? 0.5 : 0.22; drawMap(); }
+    // adaptive resolution: keep the game smooth on slow GPUs, sharpen again when there is headroom
+    if (!S.paused && raw < 250) {
+      ema += (raw - ema) * 0.08; resT -= raw / 1000;
+      if (resT <= 0) {
+        resT = 1.6;
+        if (ema > 24 && pr > PR_MIN + 0.01) { pr = Math.max(PR_MIN, pr * 0.85); onResize(); goodRuns = 0; }
+        else if (ema < 15.5 && pr < PR_MAX - 0.01) { if (++goodRuns >= 4) { pr = Math.min(PR_MAX, pr * 1.12); onResize(); goodRuns = 0; } }
+        else goodRuns = 0;
+      }
+    }
     renderer.render(scene, camera);
   }
 
@@ -1496,6 +1800,8 @@ function createGame(opts) {
   onResize();
   load.style.display = 'flex';
   S.cam.yaw = S.foot.yaw; S.cam.x = S.foot.x; S.cam.z = S.foot.z - 8;
+  updateSun(); S.amb = S.mission ? T_DAY : T_NIGHT + (T_DAY - T_NIGHT) * smooth(-0.02, 0.5, sunSin);
+  if (MISSION) env.querySelector('.clk').style.display = 'none';
   setTimeout(() => {
     if (destroyed) return;
     planChunks(S.foot.x, S.foot.z, true); px0 = S.foot.x; pz0 = S.foot.z;
@@ -1517,11 +1823,11 @@ function createGame(opts) {
       window.removeEventListener('resize', onResize); window.removeEventListener('blur', onBlur);
       for (const [, c] of chunks) removeChunk(c); chunks.clear();
       scene.traverse(o => { if (o.geometry) o.geometry.dispose(); });
-      Object.values(M).forEach(m => m.dispose()); terrainMat.dispose(); detailTex.dispose(); earthTex.dispose();
+      Object.values(M).forEach(m => m.dispose()); mis.mats.forEach(m => m.dispose()); terrainMat.dispose(); detailTex.dispose(); earthTex.dispose(); cloudTex.dispose(); discTex.dispose(); SHADOW.on = false;
       sfx.close(); renderer.dispose(); try { renderer.forceContextLoss(); } catch (e) { /* ignore */ }
       container.innerHTML = '';
     },
-    _debug: { S, rover, astro, lab, camera, scene, renderer, SITES, rocks, update, frame }
+    _debug: { S, rover, astro, lab, camera, scene, renderer, SITES, rocks, update, frame, mis, sunDir, sunLight, earth, MIR_SPOTS, heightAt, sunBlocked, qStat, queueLen: () => queue.length, pr: () => pr }
   };
 }
 
