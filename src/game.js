@@ -1994,7 +1994,7 @@ function createGame(opts) {
       sfx.close(); renderer.dispose(); try { renderer.forceContextLoss(); } catch (e) { /* ignore */ }
       container.innerHTML = '';
     },
-    _debug: { S, rover, astro, lab, camera, scene, renderer, SITES, rocks, update, frame, mis, sunDir, sunLight, earth, MIR_SPOTS, heightAt, sunBlocked, qStat, queueLen: () => queue.length, pr: () => pr }
+    _debug: { S, rover, astro, lab, camera, scene, renderer, SITES, rocks, update, frame, mis, sunDir, sunLight, earth, MIR_SPOTS, heightAt, sunBlocked, qStat, queueLen: () => queue.length, pr: () => pr, planChunks, clouds, earthGlow }
   };
 }
 
