@@ -32,13 +32,86 @@ const LAB_RADIUS = 30;
 const MED = { x: -6.6, z: 1.5 };      // medical bay (H)
 const STORE = { x: 7.0, z: 1.5 };     // sample storage (E)
 const WORKSHOP = { x: 0, z: -7.4 };   // rover workshop (R)
+// ---- Kid-Friendly NASA ECLSS Stations Inside the Base
+const O2_LAB = { x: -5.2, z: -5.2 };      // 3D Oxygen & Water Maker Station inside the dome (Keys O, G, N)
+const AIRLOCK_SCU = { x: -2.3, z: 13.1 }; // Airlock Refill Hose (4.3 psi Spacesuit Refill)
+
+// ---- Base facilities (outside the dome): left = oxygen + water, back = power, right = greenhouse + garage, front-left = radiation shelter
+const PROD_PANEL = { x: -30.6, z: 4.4 };               // oxygen production control panel (E)
+const GARAGE = { x0: 29, z0: 21, x1: 40, z1: 35, door0: 31, door1: 38, ent: { x: 34.5, z: 36.5 } };   // rover garage, entrance on +z
+const RAD_SHELTER = { x0: -29.5, z0: 29, x1: -21.5, z1: 35, door: { x: -19.4, z: 32 } };            // regolith-covered radiation shelter
+const RAD_IN = (x, z) => x > RAD_SHELTER.x0 && x < RAD_SHELTER.x1 && z > RAD_SHELTER.z0 && z < RAD_SHELTER.z1;
+// ---- Exact NASA Oxygen Constants & Absolute Activity Ratios (Hidden in Code Math)
+const NASA_O2 = {
+  // Pressures: Earth = 14.7 psi | Moon Base = 10.2 psi (30% O2) | Spacesuit = 4.3 psi (100% O2 for flexibility)
+  BASE_PSI: 10.2, BASE_O2_PCT: 30, SUIT_PSI: 4.3, SUIT_O2_PCT: 100,
+  // Spacesuit Oxygen Bank: 8 Blue Capsules × 100 g = 800 g O2 + 1 Red Emergency Backup Capsule = 75 g O2 (30 min)
+  BLOCK_G: 100, SUIT_BLOCKS: 8, SUIT_MAX_G: 800, SOP_MAX_G: 75,
+  // Base Storage Banks: 30.50 kg High-Pressure O2 Bank (max 35.40 kg) + 103.0 L Water Tank (98% WRS recovery)
+  BASE_TANK_START_KG: 30.50, BASE_TANK_MAX_KG: 35.40, BASE_WATER_START_L: 103.0, BASE_WATER_MAX_L: 103.0,
+  // In-Base Crew Daily Needs: 1 astronaut = 35.0 g/hr (0.84 kg/day) | 4 crew = 140.0 g/hr (3.36 kg/day) + 9.46 g/hr leak
+  CREW_COUNT: 4, CREW_O2_G_HR: 35.0, CREW_O2_KG_DAY: 0.84, FOUR_CREW_O2_KG_DAY: 3.36,
+  HULL_LEAK_G_HR: 9.46, CREW_CO2_KG_DAY: 1.00,
+  // Water-Splitter (OGA Electrolyzer: 2 H2O -> 2 H2 + O2)
+  // 1 Capsule (100 g O2) splits 0.1125 L water in 15.6 min (Max 385.4 g/hr, 3.573 kW) or 26.7 min (Normal 225 g/hr)
+  // Full 8-Capsule Suit (800 g O2) splits 0.90 L water in 2 hr 05 min (7.42 kWh)
+  // 4-Crew Daily Base Air (3.36 kg O2, no EVAs) = 8 hr 43 min active (31.16 kWh) + 15 hr 17 min standby (0.382 kW = 5.84 kWh) = 37.0 kWh/day
+  H2O_L_PER_KG_O2: 1.125, H2O_L_PER_BLOCK: 0.1125,
+  OGA_KW_ACTIVE: 3.573, OGA_KW_STANDBY: 0.382, OGA_DAILY_BASE_KWH: 37.00,
+  OGA_RATES_G_HR: { max: 385.4, nominal: 225.0, standby: 0.0 },
+  // Breath Recycler (CDRA traps 1.00 kg CO2/day -> Sabatier recovers 50% O2 [420 g/day], Bosch recovers 84-90% O2 [700 g/day])
+  CO2_REC: {
+    off:      { frac: 0.00, savedPct: 0,  h2oLostBlockL: 0.11250 },
+    sabatier: { frac: 0.50, savedPct: 50, h2oLostBlockL: 0.05625 },
+    bosch:    { frac: 0.84, savedPct: 90, h2oLostBlockL: 0.01790 }
+  },
+  // Exact & Absolute NASA Activity Ratios:
+  // - vsBase: exact ratio compared to In-Base normal breathing (35.0 g/hr = 1.000x)
+  // - vsDrive: exact ratio compared to Driving the Rover outside (63.0 g/hr = 1.000x)
+  // - vsWalk: exact ratio compared to Normal Walking outside on foot (100.0 g/hr = 1.000x)
+  TIERS: {
+    base_sleep: { id: 'base_sleep', gHr: 22.2,  vsBase: 0.634, vsDrive: 0.352, vsWalk: 0.222, speedTag: 'safe',   fastAlert: false },
+    base_work:  { id: 'base_work',  gHr: 35.0,  vsBase: 1.000, vsDrive: 0.556, vsWalk: 0.350, speedTag: 'safe',   fastAlert: false },
+    base_exerc: { id: 'base_exerc', gHr: 100.0, vsBase: 2.857, vsDrive: 1.587, vsWalk: 1.000, speedTag: 'safe',   fastAlert: false },
+    rover:      { id: 'rover',      gHr: 63.0,  vsBase: 1.800, vsDrive: 1.000, vsWalk: 0.630, speedTag: 'save',   fastAlert: false },
+    eva_stand:  { id: 'eva_stand',  gHr: 63.0,  vsBase: 1.800, vsDrive: 1.000, vsWalk: 0.630, speedTag: 'save',   fastAlert: false },
+    eva_slow:   { id: 'eva_slow',   gHr: 70.4,  vsBase: 2.011, vsDrive: 1.117, vsWalk: 0.704, speedTag: 'normal', fastAlert: false },
+    eva_walk:   { id: 'eva_walk',   gHr: 100.0, vsBase: 2.857, vsDrive: 1.587, vsWalk: 1.000, speedTag: 'normal', fastAlert: false },
+    eva_climb:  { id: 'eva_climb',  gHr: 160.0, vsBase: 4.571, vsDrive: 2.540, vsWalk: 1.600, speedTag: 'fast',   fastAlert: true  },
+    eva_sprint: { id: 'eva_sprint', gHr: 222.2, vsBase: 6.349, vsDrive: 3.527, vsWalk: 2.222, speedTag: 'super',  fastAlert: true  }
+  },
+  // Kid-friendly forgiving time scale:
+  // 1 real sec outside = 0.022 EVA hours -> 800 g (8 Capsules) lasts ~6.0 min of normal walking or ~9.5 min of rover driving!
+  EVA_HR_PER_SEC: 0.022,
+  BASE_HR_PER_SEC: 0.05
+};
+// ---- One central configuration for oxygen production, power and the refill / unloading stations
+const BASE_CFG = {
+  BATTERY_KWH: 40, BATTERY_START_KWH: 30,          // Power Station battery (electricity is limited)
+  SOLAR_KW_PEAK: 3.2,                              // solar panels in full sunlight
+  BASE_LOAD_KW: 1.0,                               // life support, lights, computers (always on)
+  KWH_PER_KG_O2: NASA_O2.OGA_KW_ACTIVE / (NASA_O2.OGA_RATES_G_HR.max / 1000),   // ≈ 9.27 kWh per kg of oxygen (NASA OGA data)
+  H2_PER_O2: 0.125,                                // 2H₂O → 2H₂ + O₂ : 4 g hydrogen for every 32 g oxygen
+  H2_MAX_KG: 4.0, H2_START_KG: 0.2,                // separate hydrogen storage tank
+  SABATIER_H2_PER_WATER: 0.222, BOSCH_H2_PER_WATER: 0.111, CO2_PER_WATER: 1.222,   // breath recycler chemistry (kg per kg of water)
+  PROD_RADIUS: 3.4, REFILL_RADIUS: 2.6, GARAGE_RADIUS: 7.5, SHELTER_RADIUS: 4.5
+};
 const DOME_IN = 9.4, DOME_OUT = 10.9; // dome wall (ring) — open at the doorway on +z
 const DOOR_HALF = 1.5;                // half width of the doorway
 function inBuilding(x, z) { return Math.hypot(x, z) < DOME_IN || (Math.abs(x) < 2.9 && z > 9.0 && z < 16.9); }
 // solid parts of the base (ground plan): circles [x, z, r] and boxes [x0, z0, x1, z1]
-const LAB_CIRCLES = [[0, 0, 1.5], [20, 18, 2.3], [-14, 22, 0.6], [8, 22, 0.4], [7.6, -1.5, 0.65]];
+const LAB_CIRCLES = [[0, 0, 1.5], [20, 18, 2.3], [-14, 22, 0.6], [8, 22, 0.4], [7.6, -1.5, 0.65], [20, 12.5, 1.8],
+  [-35, -7, 1.7], [-38.9, -7, 1.7], [-34.6, 7, 1.8], [30, -27, 5.8], [-28, -28, 1.5]];   // water tanks, hydrogen tank, greenhouse, communication mast
 for (let i = 0; i < 8; i++) { const a = (i + 0.5) / 8 * Math.PI * 2; LAB_CIRCLES.push([Math.sin(a) * 27, Math.cos(a) * 27, 0.35]); }   // lamp posts
 const LAB_BOXES = [
+  [-7.0, -7.0, -3.2, -3.6],                                                          // oxygen & water station
+  [-31.2, -1.3, -25.8, 1.3],                                                         // pressurised tunnel to the oxygen facility
+  [-37.2, -2.2, -32.8, 2.2], [-40.3, -2.6, -37.7, -0.6], [-44.4, 1.2, -38.8, 6.8],   // electrolysis, compressor, oxygen tanks
+  [-43.6, -8.4, -41.4, -5.6],                                                        // water purifier
+  [GARAGE.x0 - 0.6, GARAGE.z0, GARAGE.x0, GARAGE.z1], [GARAGE.x1, GARAGE.z0, GARAGE.x1 + 0.6, GARAGE.z1], [GARAGE.x0 - 0.6, GARAGE.z0 - 0.6, GARAGE.x1 + 0.6, GARAGE.z0],
+  [GARAGE.x0 - 0.6, GARAGE.z1 - 0.6, GARAGE.door0, GARAGE.z1], [GARAGE.door1, GARAGE.z1 - 0.6, GARAGE.x1 + 0.6, GARAGE.z1],   // garage walls (wide door on +z)
+  [-31.6, 27, -29.5, 37], [-31.6, 35, -19.4, 37], [-31.6, 27, -19.4, 29], [-21.5, 33, -19.4, 37], [-21.5, 27, -19.4, 31],      // radiation shelter (door gap z 31–33)
+  [-3.6, -36.2, 3.6, -31.8], [-16, -51, 16, -41],                                    // power station battery house + solar field
   [10.5, -3.4, 25.8, 3.4], [-25.8, -3.4, -10.5, 3.4], [-3.4, -25.8, 3.4, -10.5],   // side modules + tubes
   [2.9, 9.3, 3.3, 16.9], [-3.3, 9.3, -2.9, 16.9],                                   // airlock side walls
   [DOOR_HALF, 16.5, 3.3, 16.9], [-3.3, 16.5, -DOOR_HALF, 16.9],                     // airlock front wall (doorway between)
@@ -48,7 +121,7 @@ const LAB_BOXES = [
 ];
 // deepest contact of a circle (px, pz, rad) with the base, or null
 function labContact(px, pz, rad) {
-  if (px * px + pz * pz > 60 * 60) return null;
+  if (px * px + pz * pz > 66 * 66) return null;
   let best = null;
   // dome wall: a ring that is open at the doorway (+z) for anything that fits through
   const rr = Math.hypot(px, pz);
@@ -133,7 +206,7 @@ const T = {
     a_collect: 'Collecting sample…', a_load: 'Loading the rover…', a_store: 'Loading the oxygen maker…',
     w_flareSoon: 'Solar flare in {s} s — get to shelter!',
     w_flare: 'SOLAR FLARE — radiation x3.5! Reach the lab or hide in a crater.',
-    w_o2: 'Low oxygen! Return to the lab.', w_en: 'Energy empty — the rover crawls slowly!',
+    w_o2: 'Low oxygen! Refill at the yellow station in the airlock.', w_en: 'Energy empty — the rover crawls slowly!',
     w_edge: 'You are leaving the mapped area. Turn back.', w_rad: 'High radiation! Get to the lab.',
     m_refill: 'Lab: refilling your suit from the base oxygen tank',
     m_repair: 'Lab: the rover is being repaired',
@@ -145,7 +218,7 @@ const T = {
     helpTitle: 'MOON MISSION',
     help: ['W / S — walk or drive forward / back', 'A / D — turn left / right',
       'Space — jump · Shift — run · B — brake', 'E — interact (rover, rocks, lab)',
-      'C — switch 3rd / 1st person view', 'Inside the base: E — oxygen maker · H — medical bay · R — workshop (costs money)', 'Drag the mouse — look around · Wheel — zoom', 'M — Moon map (where you are on the real Moon)', 'Esc — pause'],
+      'C — switch 3rd / 1st person view', 'Inside the base: E — oxygen maker · H — medical bay · R — workshop (costs money)', 'Drag the mouse — look around · Wheel — zoom', 'M — Moon map (where you are on the real Moon)', 'O — water splitter · G — breath recycler · N — oxygen guide', 'Esc — pause'],
     helpGoal: 'Drive to the glowing craters, collect rock samples, load them into the rover and store 12 samples in the lab. The sun’s radiation hurts you outside, and oxygen and energy run down — return to the lab to recover. Stones damage the rover. Go through the airlock into the base: store samples at the storage rack (E), earn money, and spend it at the medical bay (H) and the workshop (R).',
     begin: 'BEGIN MISSION', loading: 'Generating the Moon…',
     paused: 'PAUSED', resume: 'RESUME', quit: 'BACK TO LEVELS',
@@ -153,11 +226,13 @@ const T = {
     loseT: 'Mission failed', lose_rad: 'Radiation sickness took the astronaut.', lose_o2: 'The astronaut ran out of oxygen. Next time, turn back before the Oxygen bar reaches the white line.',
     again: 'PLAY AGAIN', site: 'Crater', lab: 'LAB',
     kidTitle: 'Mission briefing for young astronauts', kidTitleM: 'Mission briefing: The Deadly Shadow', readAloud: '🔊 Read aloud', stopRead: '⏹ Stop reading', controls: 'Controls',
-    kidMoon: ['Welcome, young astronaut! Our Moon base is running out of air to breathe.', 'There is no air on the Moon. Your space suit carries a small tank of oxygen, and the base has one big oxygen tank.', 'Here is the secret: Moon rocks are almost half oxygen! It is locked inside the stone, and the oxygen maker in the base can pull it out.', 'Your job: collect the glowing rocks, bring them back, and put them into the oxygen maker. Fill the base tank to 100 percent.', 'Watch the Oxygen bar. The timer shows how long your air will last, and the white line shows how much air you need to get home. Always turn back before your oxygen reaches the line!', 'Running makes you breathe faster and uses more oxygen. The rover is fast, so driving uses less air on every trip.', 'At the base, the lab refills your suit from the big tank. Every refill uses base oxygen, so do not waste it.', 'Walk with W, A, S and D, jump with Space, and press E to pick up rocks and to get into the rover.', 'Ready? Press the Begin button. Good luck!'],
+    kidMoon: ['Welcome, young astronaut! Our Moon base is running out of air to breathe.', 'There is no air on the Moon. Your space suit carries a small tank of oxygen, and the base has one big oxygen tank.', 'Here is the secret: Moon rocks are almost half oxygen! It is locked inside the stone, and the oxygen maker in the base can pull it out.', 'Your job: collect the glowing rocks, bring them back, and put them into the oxygen maker. Fill the base tank to 100 percent.', 'Watch the Oxygen bar. The timer shows how long your air will last, and the white line shows how much air you need to get home. Always turn back before your oxygen reaches the line!', 'Running makes you breathe faster and uses more oxygen. The rover is fast, so driving uses less air on every trip.', 'At the base, go to the yellow refill station in the airlock and press E to refill your suit from the big tank. Every refill uses base oxygen, so do not waste it.', 'Walk with W, A, S and D, jump with Space, and press E to pick up rocks and to get into the rover.', 'Ready? Press the Begin button. Good luck!'],
     kidShadow: ['Welcome, young astronaut! A radio tower is broken inside a deep, dark crater.', 'In the sunshine, your space suit gets very hot. But in the crater\'s shadow it is minus 173 degrees! Your energy and health freeze fast.', 'Here is a secret. On Earth, the air works like a blanket and keeps the heat. The Moon has no air, so the sun is boiling and the shade is freezing.', 'Your plan: drive the rover to the crater. Walk to each glowing spot on the sunny edge and press E to put up a giant mirror. You have three mirrors.', 'The mirrors bounce sunlight into the dark crater and make a warm, bright spot around the tower.', 'Now climb down, stand in the warm light, and press E at the tower to start repairing it. If you walk away, the repair pauses, so you can warm up and come back.', 'Walk with W, A, S and D, jump with Space, and press E to use things. Press C to change the camera.', 'Ready? Press the Begin button. Good luck!'],
-    tank: 'Base oxygen tank', o2home: 'Way home needs ~{n}%', obj_fill: 'Base oxygen tank: {n}%', maker: 'Oxygen maker', heating: '{n} rocks heating', idle: 'ready', rocks: 'Rocks delivered', obj_home: 'Go back and refill your oxygen', w_turn: 'TURN BACK NOW! You have {a}% oxygen — the way home needs about {b}%.', w_soon: 'Head home soon — your oxygen is close to the white line.', w_tank0: 'The base tank is EMPTY — the lab cannot refill your suit! The backup makes air very slowly. Bring rocks!', w_tankLow: 'The base tank is almost empty — bring rocks soon!', f_oxy: '+{o}% base oxygen · +${m}', f_newRocks: 'New glowing rocks were found at the craters!', tip_out: 'You are outside now. Your suit uses oxygen — watch the timer next to Oxygen.', tip_run: 'Running makes you breathe faster: oxygen goes down almost twice as fast.', tip_rover: 'The rover is fast, so every trip uses less oxygen. Drive to save air!', tip_half: 'Half your oxygen is gone. Keep the Oxygen bar above the white line — that is what you need to get home.', tip_rock: 'This dark lava rock is almost half oxygen, locked inside its minerals!', tip_maker: 'The oxygen maker heats the rocks and pulls the oxygen out. Watch the base tank fill up!', tip_refill: 'The lab is refilling your suit from the base tank. Every refill uses base oxygen.', winT1: 'The base can breathe again!', winD1: 'You made enough oxygen from Moon rocks to fill the base tank ({n} rocks, time {t}). Moon rocks are about 40–45% oxygen by weight — it is locked inside minerals that formed in ancient lava. Future astronauts plan to make air to breathe and rocket fuel this way.',
+    tank: 'Base oxygen tank', o2home: 'Way home needs about {n} of 8 capsules', obj_fill: 'Base oxygen tank: {n}%', maker: 'Oxygen maker', heating: '{n} rocks heating', idle: 'ready', rocks: 'Rocks delivered', obj_home: 'Go back and refill your oxygen', w_turn: 'TURN BACK NOW! You have {a} capsules left — the way home needs about {b}.', w_soon: 'Head home soon — your oxygen is close to the white line.', w_tank0: 'The base tank is EMPTY — the lab cannot refill your suit! The backup makes air very slowly. Bring rocks!', w_tankLow: 'The base tank is almost empty — bring rocks soon!', f_oxy: '+{o}% base oxygen · +${m}', f_newRocks: 'New glowing rocks were found at the craters!', tip_out: 'You are outside now. Your suit uses oxygen — watch the timer next to Oxygen.', tip_run: 'Running makes you breathe faster: oxygen goes down almost twice as fast.', tip_rover: 'The rover is fast, so every trip uses less oxygen. Drive to save air!', tip_half: 'Half your oxygen is gone. Keep the Oxygen bar above the white line — that is what you need to get home.', tip_rock: 'This dark lava rock is almost half oxygen, locked inside its minerals!', tip_maker: 'The oxygen maker heats the rocks and pulls the oxygen out. Watch the base tank fill up!', tip_refill: 'You refilled your suit from the base tank. Every refill uses base oxygen!', winT1: 'The base can breathe again!', winD1: 'You made enough oxygen from Moon rocks to fill the base tank ({n} rocks, time {t}). Moon rocks are about 40–45% oxygen by weight — it is locked inside minerals that formed in ancient lava. Future astronauts plan to make air to breathe and rocket fuel this way.',
     map_title: 'MOON MAP', map_sub: 'Real photo map of the whole Moon, taken by a NASA spacecraft that flies around the Moon', map_btn: 'MAP', map_close: 'CLOSE', map_credit: 'Map: NASA Goddard Space Flight Center / Arizona State University · Press M or Esc to close', map_here: 'YOU ARE HERE', map_lvl: 'Level {n}', map_near: 'Near side (faces Earth)', map_far: 'Far side', map_hint: 'Tap a marker to learn about the place.', site1_name: 'Taurus–Littrow valley (Apollo 17)', site1_info: 'Ancient lava flooded this valley. In 1972 the Apollo 17 astronauts found orange glass beads here, made by volcanic “fire fountains”. The dark lava rock here is full of a mineral that oxygen can be pulled out of. That is why our oxygen base is here.', site2_name: 'Shackleton crater, south pole', site2_info: 'About 21 km wide and more than 4 km deep. At the pole the Sun always stays very low, so the crater floor has been in shadow for billions of years and is one of the coldest places we know — far below −173 °C.', apollo_info: 'Apollo {n} landed here in {y}.', help_map: 'M — Moon map (where you are on the real Moon)',
     kidTitleS: 'Mission briefing: Solar Radiation Storm', kidStorm: ['Welcome, young astronaut! You are outside, near the Moon base.', 'Soon the Sun will blast out a solar storm. A red warning will appear with a 45-second timer.', 'Spacesuits and thin walls cannot stop a solar storm! If it catches you outside, the screen fills with static, the radiation counter clicks loudly, and your health drops fast.', 'Run into the base! Hold Shift to run. In the middle of the base is the round Storm Shelter.', 'The shelter has hollow walls. Go to the two water valves and hold E for 5 seconds on each one to pump water into the walls.', 'Here is the science: water stops radiation better than metal! Water is full of hydrogen, which soaks up the storm\'s tiny particles.', 'When both walls are full, step inside the shelter. You are safe, and your health comes back.', 'Ready? Press the Begin button. Good luck!'], st_warnT: 'SOLAR STORM INCOMING', st_hitT: 'SOLAR STORM! RADIATION HIGH', st_msg: 'Spacesuits and thin walls cannot stop a Solar Storm! Get to the Storm Shelter!', st_hitSay: 'The solar storm is here! Get into the shelter and fill its walls with water!', st_safe: 'The water walls are blocking the radiation. Stay inside!', obj_survey: 'Look around near the base', sobj_run: 'Run into the base — to the Storm Shelter!', sobj_valve: 'Hold E on water valve {n} to fill the shelter wall', sobj_enter: 'Step inside the Storm Shelter', sobj_wait: 'You are safe. Stay inside — the storm is coming', sobj_ok: 'Shielded! Stay inside — your health is coming back', walls: 'Shelter walls', tgt_shelter: 'Shelter', tgt_valve: 'Valve {n}', p_valve: 'Hold E — pump water into wall {n} ({p}%)', a_valve: 'Pumping water into wall {n}…', st_wallFull: 'Wall {n} is full of water!', storm_in: 'Storm in', lose_storm: 'The solar storm’s radiation was too strong. Next time, run to the shelter and fill its walls with water right away.', swinT: 'You survived the solar storm!', swinD: 'The water walls blocked the radiation and kept you safe (time {t}). Water is full of hydrogen, which stops a storm’s tiny particles better than metal — metal can even make extra radiation when the particles hit it. That is why scientists want to use water and Moon soil to shield future Moon bases.', site3_name: 'Descartes Highlands (Apollo 16)', site3_info: 'Apollo 16 astronauts explored here in April 1972. Only four months later, in August 1972, one of the strongest solar storms of the space age hit the Moon. Anyone standing here would have needed a storm shelter.',
+    b_o2_base: '🏠 In Base: Refilling Oxygen Bank!', b_o2_rover: '🚗 Driving Rover: Saving Oxygen!', b_o2_eva_stand: '🧤 Steady Work: Slow Air Use', b_o2_eva_slow: '🐢 Slow Walk: Gentle Air Use', b_o2_eva_walk: '🚶 Walking: Normal Air Use', b_o2_eva_climb: '⛰️ Climbing: Bank Emptying Fast!', b_o2_eva_sprint: '🏃💨 Running: Emptying Super Fast!', w_o2_climb: '⛰️ Steep hill! Your Oxygen Bank is emptying faster — drive the Rover to save air!', w_o2_sprint: '🏃💨 Running fast! Your Oxygen Bank is emptying much faster than driving!', w_breather: '😮‍💨 Catching your breath for 4 seconds so your helmet’s air filter can clean up!', w_sop: '🚨 RED BACKUP OXYGEN CAPSULE ACTIVE! Head back to the Moon Base to refill!', eclss_title: 'Base Oxygen Factory', caps: 'capsules', p1_water: '1. Water', p2_maker: '2. Water Splitter', p3_bank: '3. Oxygen Bank', p4_rec: '4. Breath Recycler:', oga_nominal: 'Normal', oga_max: 'Turbo ⚡', oga_standby: 'Sleep 🌙', co2_sabatier: 'Saves 50% Water', co2_bosch: 'Saves 90% Water!', co2_off: 'OFF (0% Saved)', f_oga_nominal: 'Water Splitter: NORMAL — turning water into oxygen!', f_oga_max: 'Water Splitter: TURBO — making oxygen almost twice as fast!', f_oga_standby: 'Water Splitter: SLEEP — saving the base’s electricity!', f_co2_sabatier: 'Breath Recycler: ON — turning breathed-out air back into water (saves 50%)!', f_co2_bosch: 'Super Breath Recycler: ON — saving 90% of our water!', f_co2_off: 'Breath Recycler: OFF — losing water every time we make oxygen!', f_bosch_buy: '🎉 Super Breath Recycler unlocked for $300! Now saving 90% of our water!', nasa_title: 'HOW OXYGEN WORKS ON THE MOON (AGES 7–12)', nasa_sub: 'Real NASA Science Made Simple!', nk_1t: '🎒 1. Your 8-Capsule Oxygen Bank', nk_1d: 'Your backpack holds 8 blue capsules of pure oxygen, plus 1 red emergency backup capsule that lasts 30 minutes. Plug into the yellow hose in the airlock to refill!', nk_2t: '🚗 2. Why Running Drains Air Faster', nk_2d: 'Inside the base you breathe slowly. Driving the rover is easy and saves air. Walking uses about 1.6 times more air than driving, climbing hills about 2.5 times more, and running about 3.5 times more!', nk_3t: '⚡ 3. Making Oxygen from Water', nk_3d: 'In the base, the glowing Water Splitter uses electricity from the solar panels to split water into oxygen to breathe and hydrogen gas. Less than 1 liter of water a day makes enough oxygen for one astronaut!', nk_4t: '♻️ 4. Recycling Your Breath', nk_4d: 'Every day you breathe out about 1 kg of carbon dioxide. The green Breath Recycler mixes it with the leftover hydrogen and turns it back into water — saving half of it (or 90% with the $300 super upgrade)!', btn_o: 'O: Splitter', btn_g: 'G: Recycler', btn_n: 'N: Guide',
+    p_prod: 'Press E to manage oxygen production', p_refill: 'Press E to refill spacesuit oxygen', p_garage: 'Press E to unload collected crystals', p_shelter: 'Press E — Enter Radiation Shelter', pr_title: 'OXYGEN PRODUCTION', pr_sub: 'Water + electricity → oxygen + hydrogen', pr_water: 'Purified water', pr_power: 'Electricity (battery)', pr_o2: 'Oxygen stored in the base', pr_max: 'Maximum oxygen storage', pr_h2: 'Hydrogen (by-product)', pr_status: 'Status', pr_prog: 'Next oxygen capsule', pr_nasa: 'NASA numbers: 1 kg of oxygen needs about 1.1 L of water and 9.3 kWh of electricity, and also makes 0.125 kg of hydrogen.', st_run: 'RUNNING', st_stop: 'STOPPED', st_nowater: 'PAUSED — not enough water', st_nopower: 'PAUSED — not enough electricity', st_full: 'PAUSED — oxygen storage is full', st_h2full: 'PAUSED — hydrogen tank is full (turn on the Breath Recycler)', b_start: 'START PRODUCTION', b_stop: 'STOP PRODUCTION', b_close: 'CLOSE', rf_title: 'SPACESUIT OXYGEN REFILL', rf_suit: 'Your spacesuit oxygen', rf_cap: 'Maximum spacesuit capacity', rf_cap_v: '8 capsules + 1 backup', rf_base: 'Oxygen in base storage', rf_can: 'Oxygen that can be transferred', b_refill: 'REFILL SPACESUIT', rf_empty: 'INSUFFICIENT OXYGEN — PRODUCE MORE OXYGEN FIRST.', rf_full: 'SPACESUIT OXYGEN IS FULL.', rf_done: 'Spacesuit refilled: +{g} g of oxygen taken from base storage.', gr_title: 'ROVER GARAGE — CRYSTAL UNLOADING', gr_pack: 'Crystals in your backpack', gr_cargo: 'Crystals in the rover cargo', gr_cargoFar: '(park the rover in the garage)', gr_total: 'Crystals delivered to the base', b_unload: 'UNLOAD CRYSTALS', gr_none: 'No collected crystals to unload.', gr_done: '{n} CRYSTALS SUCCESSFULLY DELIVERED!', rad_ok: 'RADIATION PROTECTION: ACTIVE', rad_sub: 'Thick walls and Moon soil block the radiation. Radiation you already absorbed stays.', pw_lbl: 'Power', h2_lbl: 'Hydrogen', tgt_refill: 'Refill station', tip_split: 'Make more oxygen: press E at the Water Splitter and start production. It uses water and electricity.',
     clock: 'Lunar time', t_out: 'Outside', t_suit: 'Suit', ph_day: 'Day', ph_night: 'Night', ph_dawn: 'Sunrise', ph_dusk: 'Sunset',
     w_cold: 'SUIT FREEZING — get into sunlight or the mirror beam!', w_hot: 'SUIT OVERHEATING — get into shade or the rover!',
     w_dark: 'Crater shadow: no air to hold heat — it is −173 °C! Place mirrors on the rim.',
@@ -186,7 +261,7 @@ const T = {
     a_collect: 'Namuna olinmoqda…', a_load: 'Rover yuklanmoqda…', a_store: 'Kislorod mashinasiga solinmoqda…',
     w_flareSoon: 'Quyosh alangasi {s} soniyada — panoh toping!',
     w_flare: 'QUYOSH ALANGASI — radiatsiya 3,5 baravar! Laboratoriyaga yoki kraterga yashiring.',
-    w_o2: 'Kislorod kam! Laboratoriyaga qayting.', w_en: 'Energiya tugadi — rover sekin yuradi!',
+    w_o2: 'Kislorod kam! Shlyuzdagi sariq stansiyada to‘ldiring.', w_en: 'Energiya tugadi — rover sekin yuradi!',
     w_edge: 'Xarita chegarasidan chiqyapsiz. Orqaga qayting.', w_rad: 'Radiatsiya yuqori! Laboratoriyaga boring.',
     m_refill: 'Laboratoriya: kostyum baza kislorod bakidan to‘ldirilmoqda',
     m_repair: 'Laboratoriya: rover ta’mirlanmoqda',
@@ -198,7 +273,7 @@ const T = {
     helpTitle: 'OY MISSIYASI',
     help: ['W / S — oldinga / orqaga yurish yoki haydash', 'A / D — chapga / o‘ngga burilish',
       'Space — sakrash · Shift — yugurish · B — tormoz', 'E — o‘zaro ta’sir (rover, toshlar, laboratoriya)',
-      'C — ko‘rinish: 3-shaxs / 1-shaxs', 'Bazada: E — kislorod mashinasi · H — tibbiyot · R — ustaxona (pul kerak)', 'Sichqonchani sudrang — atrofga qarash · G‘ildirak — yaqinlashtirish', 'M — Oy xaritasi (haqiqiy Oyda qayerdasiz)', 'Esc — pauza'],
+      'C — ko‘rinish: 3-shaxs / 1-shaxs', 'Bazada: E — kislorod mashinasi · H — tibbiyot · R — ustaxona (pul kerak)', 'Sichqonchani sudrang — atrofga qarash · G‘ildirak — yaqinlashtirish', 'M — Oy xaritasi (haqiqiy Oyda qayerdasiz)', 'O — suv ajratgich · G — nafas qayta ishlagich · N — kislorod qo‘llanmasi', 'Esc — pauza'],
     helpGoal: 'Yonib turgan kraterlarga boring, tosh namunalarini yig‘ing, roverga yuklang va laboratoriyaga 12 ta namuna yetkazing. Tashqarida quyosh radiatsiyasi zarar qiladi, kislorod va energiya kamayadi — tiklanish uchun laboratoriyaga qayting. Toshlar roverga zarar yetkazadi. Shlyuz orqali bazaga kiring: namunalarni omborga (E) qo‘ying, pul ishlang va uni tibbiyot xonasi (H) hamda ustaxona (R) uchun sarflang.',
     begin: 'MISSIYANI BOSHLASH', loading: 'Oy yaratilmoqda…',
     paused: 'PAUZA', resume: 'DAVOM ETISH', quit: 'BOSQICHLARGA QAYTISH',
@@ -206,11 +281,13 @@ const T = {
     loseT: 'Missiya muvaffaqiyatsiz', lose_rad: 'Nur kasalligi kosmonavtni olib ketdi.', lose_o2: 'Kosmonavtning kislorodi tugadi. Keyingi safar Kislorod chizig‘i oq chiziqqa yetmasdan orqaga qayting.',
     again: 'QAYTA O‘YNASH', site: 'Krater', lab: 'LAB',
     kidTitle: 'Yosh kosmonavtlar uchun missiya tushuntirishi', kidTitleM: 'Missiya tushuntirishi: O‘limli soya', readAloud: '🔊 Ovoz chiqarib o‘qish', stopRead: '⏹ To‘xtatish', controls: 'Boshqaruv',
-    kidMoon: ['Xush kelibsiz, yosh kosmonavt! Oydagi bazamizda nafas olish uchun havo tugab bormoqda.', 'Oyda havo yo‘q. Kostyumingizda kichik kislorod idishi bor, bazada esa bitta katta kislorod baki bor.', 'Mana sir: Oy toshlarining deyarli yarmi kislorod! U tosh ichiga qamalgan, bazadagi kislorod mashinasi esa uni ajratib oladi.', 'Vazifangiz: yonib turgan toshlarni yig‘ing, olib keling va kislorod mashinasiga soling. Baza bakini 100 foizgacha to‘ldiring.', 'Kislorod ko‘rsatkichini kuzating. Taymer havo qancha vaqtga yetishini, oq chiziq esa uyga qaytish uchun qancha havo kerakligini ko‘rsatadi. Kislorod chiziqqa yetmasdan har doim orqaga qayting!', 'Yugurganda tezroq nafas olasiz va ko‘proq kislorod sarflaysiz. Rover tez yuradi, shuning uchun har bir safarda kamroq havo ketadi.', 'Bazada laboratoriya kostyumingizni katta bakdan to‘ldiradi. Har bir to‘ldirish baza kislorodini sarflaydi, shuning uchun uni isrof qilmang.', 'W, A, S, D bilan yuring, Probel bilan sakrang, tosh olish va roverga o‘tirish uchun E ni bosing.', 'Tayyormisiz? Boshlash tugmasini bosing. Omad!'],
+    kidMoon: ['Xush kelibsiz, yosh kosmonavt! Oydagi bazamizda nafas olish uchun havo tugab bormoqda.', 'Oyda havo yo‘q. Kostyumingizda kichik kislorod idishi bor, bazada esa bitta katta kislorod baki bor.', 'Mana sir: Oy toshlarining deyarli yarmi kislorod! U tosh ichiga qamalgan, bazadagi kislorod mashinasi esa uni ajratib oladi.', 'Vazifangiz: yonib turgan toshlarni yig‘ing, olib keling va kislorod mashinasiga soling. Baza bakini 100 foizgacha to‘ldiring.', 'Kislorod ko‘rsatkichini kuzating. Taymer havo qancha vaqtga yetishini, oq chiziq esa uyga qaytish uchun qancha havo kerakligini ko‘rsatadi. Kislorod chiziqqa yetmasdan har doim orqaga qayting!', 'Yugurganda tezroq nafas olasiz va ko‘proq kislorod sarflaysiz. Rover tez yuradi, shuning uchun har bir safarda kamroq havo ketadi.', 'Bazada shlyuzdagi sariq to‘ldirish stansiyasiga borib, E ni bosing — kostyum katta bakdan to‘ldiriladi. Har bir to‘ldirish baza kislorodini sarflaydi, shuning uchun uni isrof qilmang.', 'W, A, S, D bilan yuring, Probel bilan sakrang, tosh olish va roverga o‘tirish uchun E ni bosing.', 'Tayyormisiz? Boshlash tugmasini bosing. Omad!'],
     kidShadow: ['Xush kelibsiz, yosh kosmonavt! Chuqur va qorong‘i krater ichida aloqa minorasi sindi.', 'Quyosh nurida kostyumingiz juda qiziydi. Krater soyasida esa minus 173 daraja! Energiya va salomatlik tez muzlaydi.', 'Mana bir sir. Yerda havo ko‘rpa kabi issiqlikni ushlab turadi. Oyda havo yo‘q, shuning uchun quyoshda qaynaydi, soyada muzlaydi.', 'Rejangiz: roverda kraterga boring. Quyoshli qirg‘oqdagi har bir yonib turgan joyga borib, E ni bosing va ulkan oyna o‘rnating. Sizda uchta oyna bor.', 'Oynalar quyosh nurini qorong‘i kraterga qaytaradi va minora atrofida iliq, yorug‘ joy hosil qiladi.', 'Endi pastga tushing, iliq nurda turing va minora yonida E ni bosib, ta’mirlashni boshlang. Uzoqlashsangiz, ta’mir to‘xtab turadi, isinib qaytishingiz mumkin.', 'W, A, S, D bilan yuring, Probel bilan sakrang, E bilan harakat qiling. C tugmasi kamerani almashtiradi.', 'Tayyormisiz? Boshlash tugmasini bosing. Omad!'],
-    tank: 'Baza kislorod baki', o2home: 'Uyga qaytishga ~{n}% kerak', obj_fill: 'Baza kislorod baki: {n}%', maker: 'Kislorod mashinasi', heating: '{n} ta tosh qizimoqda', idle: 'tayyor', rocks: 'Topshirilgan toshlar', obj_home: 'Qaytib, kislorodni to‘ldiring', w_turn: 'HOZIROQ ORQAGA QAYTING! Sizda {a}% kislorod bor — uyga yo‘l taxminan {b}% oladi.', w_soon: 'Tez orada uyga qayting — kislorod oq chiziqqa yaqinlashmoqda.', w_tank0: 'Baza baki BO‘SH — laboratoriya kostyumni to‘ldira olmaydi! Zaxira tizim havoni juda sekin qiladi. Tosh olib keling!', w_tankLow: 'Baza baki deyarli bo‘sh — tezroq tosh olib keling!', f_oxy: '+{o}% baza kislorodi · +${m}', f_newRocks: 'Kraterlarda yangi yonib turgan toshlar topildi!', tip_out: 'Endi siz tashqaridasiz. Kostyum kislorod sarflaydi — Kislorod yonidagi taymerni kuzating.', tip_run: 'Yugurganda tez nafas olasiz: kislorod deyarli ikki baravar tez kamayadi.', tip_rover: 'Rover tez yuradi, shuning uchun har bir safarda kamroq kislorod ketadi. Havoni tejash uchun roverda yuring!', tip_half: 'Kislorodning yarmi tugadi. Kislorod chizig‘ini oq chiziqdan yuqorida saqlang — uyga qaytish uchun shuncha kerak.', tip_rock: 'Bu qora lava toshining deyarli yarmi kislorod — u minerallar ichiga qamalgan!', tip_maker: 'Kislorod mashinasi toshlarni qizdirib, ichidan kislorodni ajratib oladi. Baza baki to‘lishini kuzating!', tip_refill: 'Laboratoriya kostyumingizni baza bakidan to‘ldirmoqda. Har bir to‘ldirish baza kislorodini sarflaydi.', winT1: 'Baza yana nafas olmoqda!', winD1: 'Siz Oy toshlaridan baza bakini to‘ldirishga yetarli kislorod oldingiz ({n} ta tosh, vaqt {t}). Oy toshlari og‘irligining taxminan 40–45 foizi kislorod — u qadimgi lavada hosil bo‘lgan minerallar ichiga qamalgan. Kelajakda kosmonavtlar shu yo‘l bilan nafas olish uchun havo va raketa yoqilg‘isi olishni rejalashtirmoqda.',
+    tank: 'Baza kislorod baki', o2home: 'Uyga qaytishga 8 kapsuladan taxminan {n} tasi kerak', obj_fill: 'Baza kislorod baki: {n}%', maker: 'Kislorod mashinasi', heating: '{n} ta tosh qizimoqda', idle: 'tayyor', rocks: 'Topshirilgan toshlar', obj_home: 'Qaytib, kislorodni to‘ldiring', w_turn: 'HOZIROQ ORQAGA QAYTING! Sizda {a} kapsula qoldi — uyga yo‘l taxminan {b} tasini oladi.', w_soon: 'Tez orada uyga qayting — kislorod oq chiziqqa yaqinlashmoqda.', w_tank0: 'Baza baki BO‘SH — laboratoriya kostyumni to‘ldira olmaydi! Zaxira tizim havoni juda sekin qiladi. Tosh olib keling!', w_tankLow: 'Baza baki deyarli bo‘sh — tezroq tosh olib keling!', f_oxy: '+{o}% baza kislorodi · +${m}', f_newRocks: 'Kraterlarda yangi yonib turgan toshlar topildi!', tip_out: 'Endi siz tashqaridasiz. Kostyum kislorod sarflaydi — Kislorod yonidagi taymerni kuzating.', tip_run: 'Yugurganda tez nafas olasiz: kislorod deyarli ikki baravar tez kamayadi.', tip_rover: 'Rover tez yuradi, shuning uchun har bir safarda kamroq kislorod ketadi. Havoni tejash uchun roverda yuring!', tip_half: 'Kislorodning yarmi tugadi. Kislorod chizig‘ini oq chiziqdan yuqorida saqlang — uyga qaytish uchun shuncha kerak.', tip_rock: 'Bu qora lava toshining deyarli yarmi kislorod — u minerallar ichiga qamalgan!', tip_maker: 'Kislorod mashinasi toshlarni qizdirib, ichidan kislorodni ajratib oladi. Baza baki to‘lishini kuzating!', tip_refill: 'Kostyumni baza bakidan to‘ldirdingiz. Har bir to‘ldirish baza kislorodini sarflaydi!', winT1: 'Baza yana nafas olmoqda!', winD1: 'Siz Oy toshlaridan baza bakini to‘ldirishga yetarli kislorod oldingiz ({n} ta tosh, vaqt {t}). Oy toshlari og‘irligining taxminan 40–45 foizi kislorod — u qadimgi lavada hosil bo‘lgan minerallar ichiga qamalgan. Kelajakda kosmonavtlar shu yo‘l bilan nafas olish uchun havo va raketa yoqilg‘isi olishni rejalashtirmoqda.',
     map_title: 'OY XARITASI', map_sub: 'Oy atrofida uchadigan NASA kosmik apparati olgan butun Oyning haqiqiy foto xaritasi', map_btn: 'XARITA', map_close: 'YOPISH', map_credit: 'Xarita: NASA Goddard kosmik parvozlar markazi / Arizona shtat universiteti · Yopish uchun M yoki Esc', map_here: 'SIZ SHU YERDASIZ', map_lvl: '{n}-bosqich', map_near: 'Yaqin tomon (Yerga qaragan)', map_far: 'Uzoq tomon', map_hint: 'Joy haqida bilish uchun belgini bosing.', site1_name: 'Taurus–Littrou vodiysi (Apollon 17)', site1_info: 'Bu vodiyni qadimgi lava to‘ldirgan. 1972-yilda Apollon 17 kosmonavtlari bu yerda vulqon “olov favvoralari” hosil qilgan to‘q sariq shisha donachalarni topdilar. Bu yerdagi qora lava toshida kislorod ajratib olish mumkin bo‘lgan mineral ko‘p. Shuning uchun kislorod bazamiz shu yerda.', site2_name: 'Shekklton krateri, janubiy qutb', site2_info: 'Kengligi taxminan 21 km, chuqurligi 4 km dan ortiq. Qutbda Quyosh doim juda past turadi, shuning uchun krater tubi milliardlab yillardan beri soyada va bizga ma’lum eng sovuq joylardan biri — −173 °C dan ham ancha sovuq.', apollo_info: 'Apollon {n} bu yerga {y}-yilda qo‘ndi.', help_map: 'M — Oy xaritasi (haqiqiy Oyda qayerdasiz)',
     kidTitleS: 'Missiya tushuntirishi: Quyosh radiatsiya bo‘roni', kidStorm: ['Xush kelibsiz, yosh kosmonavt! Siz tashqaridasiz, Oy bazasi yaqinida.', 'Tez orada Quyosh quyosh bo‘ronini chiqaradi. Ekranda 45 soniyalik taymerli qizil ogohlantirish paydo bo‘ladi.', 'Kostyum va yupqa devorlar quyosh bo‘ronini to‘xtata olmaydi! Agar bo‘ron sizni tashqarida ushlasa, ekranni oq shovqin qoplaydi, radiatsiya hisoblagichi baland chiqillaydi va salomatlik tez kamayadi.', 'Bazaga yuguring! Yugurish uchun Shift ni bosib turing. Bazaning o‘rtasida dumaloq Bo‘ron boshpanasi bor.', 'Boshpananing devorlari ichi bo‘sh. Ikkita suv jo‘mragiga boring va har birida E ni 5 soniya bosib turib, devorlarga suv quying.', 'Mana ilm: suv radiatsiyani metalldan yaxshiroq to‘xtatadi! Suvda vodorod ko‘p, u bo‘ronning mayda zarralarini yutib oladi.', 'Ikkala devor to‘lgach, boshpana ichiga kiring. Siz xavfsizsiz va salomatligingiz tiklanadi.', 'Tayyormisiz? Boshlash tugmasini bosing. Omad!'], st_warnT: 'QUYOSH BO‘RONI YAQINLASHMOQDA', st_hitT: 'QUYOSH BO‘RONI! RADIATSIYA YUQORI', st_msg: 'Kostyum va yupqa devorlar quyosh bo‘ronini to‘xtata olmaydi! Bo‘ron boshpanasiga boring!', st_hitSay: 'Quyosh bo‘roni keldi! Boshpanaga kiring va devorlarini suv bilan to‘ldiring!', st_safe: 'Suv devorlar radiatsiyani to‘smoqda. Ichkarida qoling!', obj_survey: 'Baza atrofini ko‘zdan kechiring', sobj_run: 'Bazaga yuguring — Bo‘ron boshpanasiga!', sobj_valve: '{n}-suv jo‘mragida E ni bosib turib, devorni to‘ldiring', sobj_enter: 'Bo‘ron boshpanasi ichiga kiring', sobj_wait: 'Siz xavfsizsiz. Ichkarida qoling — bo‘ron kelmoqda', sobj_ok: 'Himoyalangansiz! Ichkarida qoling — salomatlik tiklanmoqda', walls: 'Boshpana devorlari', tgt_shelter: 'Boshpana', tgt_valve: '{n}-jo‘mrak', p_valve: 'E ni bosib turing — {n}-devorga suv quyish ({p}%)', a_valve: '{n}-devorga suv quyilmoqda…', st_wallFull: '{n}-devor suvga to‘ldi!', storm_in: 'Bo‘ronga', lose_storm: 'Quyosh bo‘roni radiatsiyasi juda kuchli edi. Keyingi safar darhol boshpanaga yuguring va devorlarini suv bilan to‘ldiring.', swinT: 'Siz quyosh bo‘ronidan omon qoldingiz!', swinD: 'Suv devorlar radiatsiyani to‘sib, sizni himoya qildi (vaqt {t}). Suvda vodorod ko‘p va u bo‘ronning mayda zarralarini metalldan yaxshiroq to‘xtatadi — zarralar urilganda metall hatto qo‘shimcha radiatsiya hosil qilishi mumkin. Shuning uchun olimlar kelajakdagi Oy bazalarini suv va Oy tuprog‘i bilan himoyalashni xohlashadi.', site3_name: 'Dekart tog‘liklari (Apollon 16)', site3_info: 'Apollon 16 kosmonavtlari bu yerni 1972-yil aprelida o‘rgandilar. Atigi to‘rt oydan so‘ng, 1972-yil avgustda, kosmik asrning eng kuchli quyosh bo‘ronlaridan biri Oyga urildi. Bu yerda turgan odamga bo‘ron boshpanasi kerak bo‘lardi.',
+    b_o2_base: '🏠 Bazada: Kislorod baki to‘ldirilmoqda!', b_o2_rover: '🚗 Roverda: Kislorod tejalyapti!', b_o2_eva_stand: '🧤 Ish: Kislorod kam sarflanmoqda', b_o2_eva_slow: '🐢 Sekin yurish: Kislorod tejamkor', b_o2_eva_walk: '🚶 Yurish: Odatiy kislorod sarfi', b_o2_eva_climb: '⛰️ Tepalik: Kislorod tez tugayapti!', b_o2_eva_sprint: '🏃💨 Yugurish: Kislorod juda tez tugayapti!', w_o2_climb: '⛰️ Tik qiyalik! Kislorod baki tezroq bo‘shayapti — havo tejash uchun rover haydang!', w_o2_sprint: '🏃💨 Tez yuguryapsiz! Kislorod baki roverdagidan 3,5 baravar tez tugayapti!', w_breather: '😮‍💨 Dubulg‘a havo filtri tozalanishi uchun 4 soniya nafas rostlayapmiz!', w_sop: '🚨 QIZIL ZAXIRA KAPSULASI ISHLAMOQDA! To‘ldirish uchun bazaga qayting!', eclss_title: 'Baza kislorod zavodi', caps: 'kapsula', p1_water: '1. Suv', p2_maker: '2. Suv ajratgich', p3_bank: '3. Kislorod banki', p4_rec: '4. Nafas qayta ishlagich:', oga_nominal: 'Me’yor', oga_max: 'Tezkor ⚡', oga_standby: 'Uyqu 🌙', co2_sabatier: '50% suv tejaydi', co2_bosch: '90% suv tejaydi!', co2_off: 'O‘chiq (0%)', f_oga_nominal: 'Suv ajratgich: ME’YORIY — suvdan kislorod olinmoqda!', f_oga_max: 'Suv ajratgich: TEZKOR — kislorod deyarli ikki baravar tez olinmoqda!', f_oga_standby: 'Suv ajratgich: UYQU — baza elektr energiyasi tejalyapti!', f_co2_sabatier: 'Nafas qayta ishlagich: YOQILDI — chiqarilgan nafas yana suvga aylantirilmoqda (50% tejaladi)!', f_co2_bosch: 'Super nafas qayta ishlagich: YOQILDI — suvimizning 90% tejalyapti!', f_co2_off: 'Nafas qayta ishlagich: O‘CHIQ — har safar kislorod olganda suv yo‘qotilmoqda!', f_bosch_buy: '🎉 Super nafas qayta ishlagich $300 ga ochildi! Endi suvning 90% tejalyapti!', nasa_title: 'OYDA KISLOROD QANDAY ISHLAYDI? (7–12 YOSH)', nasa_sub: 'Haqiqiy NASA ilmi — bolalar uchun sodda tilda!', nk_1t: '🎒 1. 8 kapsulali kislorod bakingiz', nk_1d: 'Ryukzagingizda 8 ta ko‘k toza kislorod kapsulasi va 30 daqiqaga yetadigan 1 ta qizil zaxira kapsulasi bor. To‘ldirish uchun shlyuzdagi sariq shlangga ulaning!', nk_2t: '🚗 2. Nega yugurganda havo tez tugaydi?', nk_2d: 'Bazada sekin nafas olasiz. Rover haydash oson va havoni tejaydi. Piyoda yurish roverdan taxminan 1,6 baravar, tepalikka chiqish 2,5 baravar, yugurish esa 3,5 baravar ko‘p havo sarflaydi!', nk_3t: '⚡ 3. Suvdan kislorod olish', nk_3d: 'Bazadagi yorqin Suv ajratgich quyosh panellari elektr tokidan foydalanib, suvni nafas olish uchun kislorodga va vodorod gaziga ajratadi. Kuniga 1 litrdan kam suv bitta kosmonavtga yetarli kislorod beradi!', nk_4t: '♻️ 4. Nafasni qayta ishlash', nk_4d: 'Siz kuniga taxminan 1 kg karbonat angidrid chiqarasiz. Yashil Nafas qayta ishlagich uni qolgan vodorod bilan aralashtirib, yana suvga aylantiradi — suvning yarmini (yoki $300 lik super yangilanish bilan 90% ini) tejaydi!', btn_o: 'O: Ajratgich', btn_g: 'G: Qayta ishlash', btn_n: 'N: Qo‘llanma',
+    p_prod: 'E bosing — kislorod ishlab chiqarishni boshqarish', p_refill: 'E bosing — kostyumni kislorod bilan to‘ldirish', p_garage: 'E bosing — yig‘ilgan kristallarni tushirish', p_shelter: 'E bosing — Radiatsiya boshpanasiga kirish', pr_title: 'KISLOROD ISHLAB CHIQARISH', pr_sub: 'Suv + elektr → kislorod + vodorod', pr_water: 'Tozalangan suv', pr_power: 'Elektr (batareya)', pr_o2: 'Bazadagi kislorod', pr_max: 'Kislorod omborining sig‘imi', pr_h2: 'Vodorod (qo‘shimcha mahsulot)', pr_status: 'Holat', pr_prog: 'Keyingi kislorod kapsulasi', pr_nasa: 'NASA ma’lumoti: 1 kg kislorod uchun taxminan 1,1 litr suv va 9,3 kVt·soat elektr kerak, yana 0,125 kg vodorod hosil bo‘ladi.', st_run: 'ISHLAYAPTI', st_stop: 'TO‘XTATILGAN', st_nowater: 'PAUZA — suv yetarli emas', st_nopower: 'PAUZA — elektr yetarli emas', st_full: 'PAUZA — kislorod ombori to‘la', st_h2full: 'PAUZA — vodorod baki to‘la (Nafas qayta ishlagichni yoqing)', b_start: 'ISHLAB CHIQARISHNI BOSHLASH', b_stop: 'TO‘XTATISH', b_close: 'YOPISH', rf_title: 'KOSTYUMGA KISLOROD TO‘LDIRISH', rf_suit: 'Kostyumdagi kislorod', rf_cap: 'Kostyumning eng katta sig‘imi', rf_cap_v: '8 kapsula + 1 zaxira', rf_base: 'Baza omboridagi kislorod', rf_can: 'O‘tkazish mumkin bo‘lgan kislorod', b_refill: 'KOSTYUMNI TO‘LDIRISH', rf_empty: 'KISLOROD YETARLI EMAS — AVVAL KO‘PROQ KISLOROD ISHLAB CHIQARING.', rf_full: 'KOSTYUMDAGI KISLOROD TO‘LA.', rf_done: 'Kostyum to‘ldirildi: baza omboridan +{g} g kislorod olindi.', gr_title: 'ROVER GARAJI — KRISTALLARNI TUSHIRISH', gr_pack: 'Ryukzakdagi kristallar', gr_cargo: 'Rover yukidagi kristallar', gr_cargoFar: '(roverni garajga qo‘ying)', gr_total: 'Bazaga topshirilgan kristallar', b_unload: 'KRISTALLARNI TUSHIRISH', gr_none: 'Tushiriladigan kristall yo‘q.', gr_done: '{n} TA KRISTALL MUVAFFAQIYATLI TOPSHIRILDI!', rad_ok: 'RADIATSIYADAN HIMOYA: FAOL', rad_sub: 'Qalin devorlar va Oy tuprog‘i radiatsiyani to‘sadi. Avval olingan radiatsiya qoladi.', pw_lbl: 'Elektr', h2_lbl: 'Vodorod', tgt_refill: 'To‘ldirish stansiyasi', tip_split: 'Ko‘proq kislorod oling: Suv ajratgich yonida E ni bosing va ishlab chiqarishni boshlang. U suv va elektr sarflaydi.',
     clock: 'Oy vaqti', t_out: 'Tashqarida', t_suit: 'Kostyum', ph_day: 'Kunduz', ph_night: 'Tun', ph_dawn: 'Tong', ph_dusk: 'Shom',
     w_cold: 'KOSTYUM MUZLAYAPTI — quyosh nuriga yoki oyna nuriga chiqing!', w_hot: 'KOSTYUM O‘TA QIZIYAPTI — soyaga yoki roverga o‘ting!',
     w_dark: 'Krater soyasi: issiqlikni ushlab turadigan havo yo‘q — −173 °C! Qirg‘oqqa oynalar qo‘ying.',
@@ -239,7 +316,7 @@ const T = {
     a_collect: 'Сбор образца…', a_load: 'Погрузка в ровер…', a_store: 'Загрузка кислородной машины…',
     w_flareSoon: 'Солнечная вспышка через {s} с — найдите укрытие!',
     w_flare: 'СОЛНЕЧНАЯ ВСПЫШКА — радиация x3,5! Спрячьтесь в лаборатории или в кратере.',
-    w_o2: 'Мало кислорода! Вернитесь в лабораторию.', w_en: 'Энергия закончилась — ровер едва ползёт!',
+    w_o2: 'Мало кислорода! Заправьтесь у жёлтой станции в шлюзе.', w_en: 'Энергия закончилась — ровер едва ползёт!',
     w_edge: 'Вы покидаете карту. Поверните назад.', w_rad: 'Высокая радиация! Идите в лабораторию.',
     m_refill: 'Лаборатория: скафандр заправляется из кислородного бака базы',
     m_repair: 'Лаборатория: ровер ремонтируется',
@@ -251,7 +328,7 @@ const T = {
     helpTitle: 'ЛУННАЯ МИССИЯ',
     help: ['W / S — идти или ехать вперёд / назад', 'A / D — поворот влево / вправо',
       'Пробел — прыжок · Shift — бег · B — тормоз', 'E — действие (ровер, камни, лаборатория)',
-      'C — вид от 3-го / 1-го лица', 'В базе: E — кислородная машина · H — медотсек · R — мастерская (за деньги)', 'Перетаскивайте мышь — осмотр · Колесо — масштаб', 'M — карта Луны (где ты на настоящей Луне)', 'Esc — пауза'],
+      'C — вид от 3-го / 1-го лица', 'В базе: E — кислородная машина · H — медотсек · R — мастерская (за деньги)', 'Перетаскивайте мышь — осмотр · Колесо — масштаб', 'M — карта Луны (где ты на настоящей Луне)', 'O — расщепитель воды · G — переработчик дыхания · N — справка о кислороде', 'Esc — пауза'],
     helpGoal: 'Езжайте к светящимся кратерам, собирайте образцы породы, грузите их в ровер и сдайте 12 образцов в лабораторию. Снаружи солнечная радиация вредит здоровью, а кислород и энергия убывают — для восстановления возвращайтесь в лабораторию. Камни повреждают ровер. Пройдите через шлюз в базу: сдавайте образцы на склад (E), зарабатывайте деньги и тратьте их в медотсеке (H) и мастерской (R).',
     begin: 'НАЧАТЬ МИССИЮ', loading: 'Создаём Луну…',
     paused: 'ПАУЗА', resume: 'ПРОДОЛЖИТЬ', quit: 'К УРОВНЯМ',
@@ -259,11 +336,13 @@ const T = {
     loseT: 'Миссия провалена', lose_rad: 'Лучевая болезнь погубила астронавта.', lose_o2: 'У астронавта закончился кислород. В следующий раз поворачивай назад, пока шкала кислорода не дошла до белой черты.',
     again: 'ИГРАТЬ СНОВА', site: 'Кратер', lab: 'ЛАБ',
     kidTitle: 'Инструктаж для юных астронавтов', kidTitleM: 'Инструктаж: Смертельная тень', readAloud: '🔊 Прочитать вслух', stopRead: '⏹ Остановить', controls: 'Управление',
-    kidMoon: ['Добро пожаловать, юный астронавт! На нашей лунной базе заканчивается воздух для дыхания.', 'На Луне нет воздуха. В твоём скафандре маленький баллон с кислородом, а на базе — один большой кислородный бак.', 'Вот секрет: лунные камни почти наполовину состоят из кислорода! Он заперт внутри камня, и кислородная машина на базе умеет его извлекать.', 'Твоя задача: собери светящиеся камни, привези их на базу и загрузи в кислородную машину. Наполни бак базы до 100 процентов.', 'Следи за шкалой кислорода. Таймер показывает, на сколько хватит воздуха, а белая черта — сколько воздуха нужно, чтобы вернуться домой. Всегда поворачивай назад, пока кислород не дошёл до черты!', 'Когда бежишь, дышишь чаще и тратишь больше кислорода. Ровер быстрый, поэтому на нём каждая поездка тратит меньше воздуха.', 'На базе лаборатория заправляет скафандр из большого бака. Каждая заправка тратит кислород базы, поэтому не трать его зря.', 'Ходи клавишами W, A, S и D, прыгай пробелом и нажимай E, чтобы поднять камень и сесть в ровер.', 'Готов? Нажми кнопку «Начать». Удачи!'],
+    kidMoon: ['Добро пожаловать, юный астронавт! На нашей лунной базе заканчивается воздух для дыхания.', 'На Луне нет воздуха. В твоём скафандре маленький баллон с кислородом, а на базе — один большой кислородный бак.', 'Вот секрет: лунные камни почти наполовину состоят из кислорода! Он заперт внутри камня, и кислородная машина на базе умеет его извлекать.', 'Твоя задача: собери светящиеся камни, привези их на базу и загрузи в кислородную машину. Наполни бак базы до 100 процентов.', 'Следи за шкалой кислорода. Таймер показывает, на сколько хватит воздуха, а белая черта — сколько воздуха нужно, чтобы вернуться домой. Всегда поворачивай назад, пока кислород не дошёл до черты!', 'Когда бежишь, дышишь чаще и тратишь больше кислорода. Ровер быстрый, поэтому на нём каждая поездка тратит меньше воздуха.', 'На базе подойди к жёлтой станции заправки в шлюзе и нажми E, чтобы заправить скафандр из большого бака. Каждая заправка тратит кислород базы, поэтому не трать его зря.', 'Ходи клавишами W, A, S и D, прыгай пробелом и нажимай E, чтобы поднять камень и сесть в ровер.', 'Готов? Нажми кнопку «Начать». Удачи!'],
     kidShadow: ['Добро пожаловать, юный астронавт! В глубоком тёмном кратере сломалась башня связи.', 'На солнце твой скафандр сильно нагревается. А в тени кратера минус 173 градуса! Энергия и здоровье быстро замерзают.', 'Вот секрет. На Земле воздух работает как одеяло и сохраняет тепло. На Луне воздуха нет, поэтому на солнце кипяток, а в тени мороз.', 'Твой план: поезжай на ровере к кратеру. Подойди к каждому светящемуся месту на солнечном краю и нажми E, чтобы поставить гигантское зеркало. У тебя три зеркала.', 'Зеркала отразят солнечный свет в тёмный кратер и создадут тёплое светлое пятно вокруг башни.', 'Теперь спустись вниз, встань в тёплый свет и нажми E у башни, чтобы начать ремонт. Если отойдёшь, ремонт встанет на паузу — можно согреться и вернуться.', 'Ходи клавишами W, A, S и D, прыгай пробелом, действуй клавишей E. Клавиша C меняет камеру.', 'Готов? Нажми кнопку «Начать». Удачи!'],
-    tank: 'Кислородный бак базы', o2home: 'Путь домой: нужно ~{n}%', obj_fill: 'Кислородный бак базы: {n}%', maker: 'Кислородная машина', heating: 'греются камни: {n}', idle: 'готова', rocks: 'Сдано камней', obj_home: 'Вернитесь и пополните кислород', w_turn: 'НЕМЕДЛЕННО ПОВОРАЧИВАЙ! У тебя {a}% кислорода — на дорогу домой нужно около {b}%.', w_soon: 'Скоро пора домой — кислород приближается к белой черте.', w_tank0: 'Бак базы ПУСТ — лаборатория не может заправить скафандр! Резервная система делает воздух очень медленно. Привези камни!', w_tankLow: 'Бак базы почти пуст — скорее привези камни!', f_oxy: '+{o}% кислорода базы · +${m}', f_newRocks: 'В кратерах найдены новые светящиеся камни!', tip_out: 'Теперь ты снаружи. Скафандр тратит кислород — следи за таймером рядом с «Кислород».', tip_run: 'Когда бежишь, дышишь чаще: кислород уходит почти вдвое быстрее.', tip_rover: 'Ровер быстрый, поэтому каждая поездка тратит меньше кислорода. Езди, чтобы беречь воздух!', tip_half: 'Половина кислорода израсходована. Держи шкалу кислорода выше белой черты — столько нужно, чтобы вернуться домой.', tip_rock: 'Этот тёмный лавовый камень почти наполовину состоит из кислорода, запертого в минералах!', tip_maker: 'Кислородная машина нагревает камни и извлекает из них кислород. Смотри, как наполняется бак базы!', tip_refill: 'Лаборатория заправляет скафандр из бака базы. Каждая заправка тратит кислород базы.', winT1: 'База снова дышит!', winD1: 'Ты добыл из лунных камней достаточно кислорода, чтобы наполнить бак базы (камней: {n}, время {t}). Лунные камни примерно на 40–45 % по массе состоят из кислорода — он заперт в минералах, которые образовались в древней лаве. Будущие астронавты собираются так получать воздух для дыхания и ракетное топливо.',
+    tank: 'Кислородный бак базы', o2home: 'Путь домой: нужно около {n} из 8 капсул', obj_fill: 'Кислородный бак базы: {n}%', maker: 'Кислородная машина', heating: 'греются камни: {n}', idle: 'готова', rocks: 'Сдано камней', obj_home: 'Вернитесь и пополните кислород', w_turn: 'НЕМЕДЛЕННО ПОВОРАЧИВАЙ! У тебя осталось капсул: {a} — на дорогу домой нужно около {b}.', w_soon: 'Скоро пора домой — кислород приближается к белой черте.', w_tank0: 'Бак базы ПУСТ — лаборатория не может заправить скафандр! Резервная система делает воздух очень медленно. Привези камни!', w_tankLow: 'Бак базы почти пуст — скорее привези камни!', f_oxy: '+{o}% кислорода базы · +${m}', f_newRocks: 'В кратерах найдены новые светящиеся камни!', tip_out: 'Теперь ты снаружи. Скафандр тратит кислород — следи за таймером рядом с «Кислород».', tip_run: 'Когда бежишь, дышишь чаще: кислород уходит почти вдвое быстрее.', tip_rover: 'Ровер быстрый, поэтому каждая поездка тратит меньше кислорода. Езди, чтобы беречь воздух!', tip_half: 'Половина кислорода израсходована. Держи шкалу кислорода выше белой черты — столько нужно, чтобы вернуться домой.', tip_rock: 'Этот тёмный лавовый камень почти наполовину состоит из кислорода, запертого в минералах!', tip_maker: 'Кислородная машина нагревает камни и извлекает из них кислород. Смотри, как наполняется бак базы!', tip_refill: 'Ты заправил скафандр из бака базы. Каждая заправка тратит кислород базы!', winT1: 'База снова дышит!', winD1: 'Ты добыл из лунных камней достаточно кислорода, чтобы наполнить бак базы (камней: {n}, время {t}). Лунные камни примерно на 40–45 % по массе состоят из кислорода — он заперт в минералах, которые образовались в древней лаве. Будущие астронавты собираются так получать воздух для дыхания и ракетное топливо.',
     map_title: 'КАРТА ЛУНЫ', map_sub: 'Настоящая фотокарта всей Луны, снятая аппаратом NASA, который летает вокруг Луны', map_btn: 'КАРТА', map_close: 'ЗАКРЫТЬ', map_credit: 'Карта: Центр космических полётов NASA имени Годдарда / Университет штата Аризона · M или Esc — закрыть', map_here: 'ТЫ ЗДЕСЬ', map_lvl: 'Уровень {n}', map_near: 'Видимая сторона (к Земле)', map_far: 'Обратная сторона', map_hint: 'Нажми на отметку, чтобы узнать о месте.', site1_name: 'Долина Тавр–Литтров (Аполлон-17)', site1_info: 'Эту долину залила древняя лава. В 1972 году астронавты «Аполлона-17» нашли здесь оранжевые стеклянные шарики, созданные вулканическими «огненными фонтанами». В здешней тёмной лаве много минерала, из которого можно извлечь кислород. Поэтому наша кислородная база здесь.', site2_name: 'Кратер Шеклтон, южный полюс', site2_info: 'Около 21 км в ширину и глубже 4 км. На полюсе Солнце всегда стоит очень низко, поэтому дно кратера миллиарды лет находится в тени и это одно из самых холодных известных мест — гораздо холоднее −173 °C.', apollo_info: '«Аполлон-{n}» сел здесь в {y} году.', help_map: 'M — карта Луны (где ты на настоящей Луне)',
     kidTitleS: 'Инструктаж: Солнечная радиационная буря', kidStorm: ['Добро пожаловать, юный астронавт! Ты снаружи, рядом с лунной базой.', 'Скоро Солнце выбросит солнечную бурю. Появится красное предупреждение с таймером на 45 секунд.', 'Скафандр и тонкие стены не могут остановить солнечную бурю! Если она застанет тебя снаружи, экран покроют белые помехи, счётчик радиации будет громко трещать, а здоровье будет быстро падать.', 'Беги на базу! Держи Shift, чтобы бежать. В центре базы стоит круглое штормовое убежище.', 'У убежища полые стены. Подойди к двум водяным вентилям и держи E по 5 секунд на каждом, чтобы закачать воду в стены.', 'Вот наука: вода задерживает радиацию лучше металла! В воде много водорода, который поглощает крошечные частицы бури.', 'Когда обе стены заполнены, зайди в убежище. Ты в безопасности, и здоровье восстанавливается.', 'Готов? Нажми кнопку «Начать». Удачи!'], st_warnT: 'ПРИБЛИЖАЕТСЯ СОЛНЕЧНАЯ БУРЯ', st_hitT: 'СОЛНЕЧНАЯ БУРЯ! ВЫСОКАЯ РАДИАЦИЯ', st_msg: 'Скафандр и тонкие стены не остановят солнечную бурю! Беги в штормовое убежище!', st_hitSay: 'Солнечная буря пришла! Беги в убежище и заполни его стены водой!', st_safe: 'Водяные стены задерживают радиацию. Оставайся внутри!', obj_survey: 'Осмотрись рядом с базой', sobj_run: 'Беги на базу — в штормовое убежище!', sobj_valve: 'Держи E у водяного вентиля {n}, чтобы заполнить стену', sobj_enter: 'Зайди в штормовое убежище', sobj_wait: 'Ты в безопасности. Оставайся внутри — буря приближается', sobj_ok: 'Защищён! Оставайся внутри — здоровье восстанавливается', walls: 'Стены убежища', tgt_shelter: 'Убежище', tgt_valve: 'Вентиль {n}', p_valve: 'Держите E — качать воду в стену {n} ({p}%)', a_valve: 'Вода закачивается в стену {n}…', st_wallFull: 'Стена {n} заполнена водой!', storm_in: 'До бури', lose_storm: 'Радиация солнечной бури оказалась слишком сильной. В следующий раз сразу беги в убежище и заполняй стены водой.', swinT: 'Ты пережил солнечную бурю!', swinD: 'Водяные стены задержали радиацию и спасли тебя (время {t}). В воде много водорода, и он останавливает крошечные частицы бури лучше металла — металл при ударе частиц может даже создавать дополнительную радиацию. Поэтому учёные хотят защищать будущие лунные базы водой и лунным грунтом.', site3_name: 'Нагорье Декарта (Аполлон-16)', site3_info: 'Астронавты «Аполлона-16» исследовали это место в апреле 1972 года. Всего через четыре месяца, в августе 1972 года, Луну накрыла одна из сильнейших солнечных бурь космической эпохи. Тому, кто был бы здесь, понадобилось бы штормовое убежище.',
+    b_o2_base: '🏠 На базе: Пополнение кислородного банка!', b_o2_rover: '🚗 В ровере: Экономия кислорода!', b_o2_eva_stand: '🧤 Работа: Медленный расход', b_o2_eva_slow: '🐢 Шаг: Бережный расход воздуха', b_o2_eva_walk: '🚶 Ходьба: Обычный расход воздуха', b_o2_eva_climb: '⛰️ Подъём: Банк быстро пустеет!', b_o2_eva_sprint: '🏃💨 Бег: Очень быстрый расход!', w_o2_climb: '⛰️ Крутой склон! Банк кислорода пустеет быстрее — садитесь в ровер для экономии!', w_o2_sprint: '🏃💨 Быстрый бег! Банк кислорода тратится в 3,5 раза быстрее, чем в ровере!', w_breather: '😮‍💨 Переводим дух 4 секунды, чтобы фильтр воздуха в шлеме очистился!', w_sop: '🚨 ВКЛЮЧЕНА КРАСНАЯ РЕЗЕРВНАЯ КАПСУЛА! Вернитесь на базу для заправки!', eclss_title: 'Фабрика кислорода базы', caps: 'капсул', p1_water: '1. Вода', p2_maker: '2. Расщепитель воды', p3_bank: '3. Банк кислорода', p4_rec: '4. Переработчик дыхания:', oga_nominal: 'Норма', oga_max: 'Турбо ⚡', oga_standby: 'Сон 🌙', co2_sabatier: 'Экономит 50% воды', co2_bosch: 'Экономит 90% воды!', co2_off: 'Выкл (0%)', f_oga_nominal: 'Расщепитель воды: ОБЫЧНЫЙ режим — делаем кислород из воды!', f_oga_max: 'Расщепитель воды: ТУРБО — кислород почти вдвое быстрее!', f_oga_standby: 'Расщепитель воды: СОН — экономим электричество базы!', f_co2_sabatier: 'Переработчик дыхания: ВКЛ — выдохнутый воздух снова становится водой (экономия 50%)!', f_co2_bosch: 'Супер-переработчик: ВКЛ — сохраняем 90% нашей воды!', f_co2_off: 'Переработчик дыхания: ВЫКЛ — теряем воду каждый раз, когда делаем кислород!', f_bosch_buy: '🎉 Супер-переработчик открыт за $300! Экономия 90% воды!', nasa_title: 'КАК РАБОТАЕТ КИСЛОРОД НА ЛУНЕ (7–12 ЛЕТ)', nasa_sub: 'Настоящая наука NASA простыми словами!', nk_1t: '🎒 1. Твой банк кислорода (8 капсул)', nk_1d: 'В ранце 8 синих капсул чистого кислорода и 1 красная аварийная капсула на 30 минут. Заправляйся у жёлтого шланга в шлюзе базы!', nk_2t: '🚗 2. Почему при беге воздух уходит быстрее?', nk_2d: 'На базе ты дышишь спокойно. Поездка на ровере бережёт воздух. Ходьба тратит примерно в 1,6 раза больше воздуха, чем езда, подъём в гору — в 2,5 раза, а бег — в 3,5 раза больше!', nk_3t: '⚡ 3. Кислород из воды', nk_3d: 'На базе светящийся Расщепитель воды с помощью электричества от солнечных панелей делит воду на кислород для дыхания и водород. Меньше 1 литра воды в день даёт достаточно кислорода одному астронавту!', nk_4t: '♻️ 4. Переработка дыхания', nk_4d: 'За день ты выдыхаешь около 1 кг углекислого газа. Зелёный Переработчик дыхания смешивает его с оставшимся водородом и снова превращает в воду — экономя половину (или 90% с супер-улучшением за $300)!', btn_o: 'O: Расщепитель', btn_g: 'G: Переработка', btn_n: 'N: Справка',
+    p_prod: 'Нажмите E — управление производством кислорода', p_refill: 'Нажмите E — заправить скафандр кислородом', p_garage: 'Нажмите E — выгрузить собранные кристаллы', p_shelter: 'Нажмите E — войти в радиационное убежище', pr_title: 'ПРОИЗВОДСТВО КИСЛОРОДА', pr_sub: 'Вода + электричество → кислород + водород', pr_water: 'Очищенная вода', pr_power: 'Электричество (батарея)', pr_o2: 'Кислород на базе', pr_max: 'Максимальный запас кислорода', pr_h2: 'Водород (побочный продукт)', pr_status: 'Состояние', pr_prog: 'Следующая капсула кислорода', pr_nasa: 'Данные NASA: на 1 кг кислорода нужно около 1,1 л воды и 9,3 кВт·ч электричества, и получается ещё 0,125 кг водорода.', st_run: 'РАБОТАЕТ', st_stop: 'ОСТАНОВЛЕНО', st_nowater: 'ПАУЗА — не хватает воды', st_nopower: 'ПАУЗА — не хватает электричества', st_full: 'ПАУЗА — хранилище кислорода заполнено', st_h2full: 'ПАУЗА — бак водорода полон (включите переработчик дыхания)', b_start: 'ЗАПУСТИТЬ ПРОИЗВОДСТВО', b_stop: 'ОСТАНОВИТЬ', b_close: 'ЗАКРЫТЬ', rf_title: 'ЗАПРАВКА СКАФАНДРА КИСЛОРОДОМ', rf_suit: 'Кислород в скафандре', rf_cap: 'Максимальная вместимость скафандра', rf_cap_v: '8 капсул + 1 запасная', rf_base: 'Кислород в хранилище базы', rf_can: 'Можно перекачать', b_refill: 'ЗАПРАВИТЬ СКАФАНДР', rf_empty: 'НЕДОСТАТОЧНО КИСЛОРОДА — СНАЧАЛА ПРОИЗВЕДИТЕ ЕЩЁ.', rf_full: 'КИСЛОРОД В СКАФАНДРЕ ЗАПОЛНЕН.', rf_done: 'Скафандр заправлен: +{g} г кислорода из хранилища базы.', gr_title: 'ГАРАЖ РОВЕРА — ВЫГРУЗКА КРИСТАЛЛОВ', gr_pack: 'Кристаллы в рюкзаке', gr_cargo: 'Кристаллы в грузе ровера', gr_cargoFar: '(поставьте ровер в гараж)', gr_total: 'Кристаллов сдано на базу', b_unload: 'ВЫГРУЗИТЬ КРИСТАЛЛЫ', gr_none: 'Нет собранных кристаллов для выгрузки.', gr_done: '{n} КРИСТАЛЛОВ УСПЕШНО ДОСТАВЛЕНО!', rad_ok: 'РАДИАЦИОННАЯ ЗАЩИТА: АКТИВНА', rad_sub: 'Толстые стены и лунный грунт задерживают радиацию. Уже полученная радиация остаётся.', pw_lbl: 'Энергия', h2_lbl: 'Водород', tgt_refill: 'Станция заправки', tip_split: 'Сделай больше кислорода: нажми E у расщепителя воды и запусти производство. Он тратит воду и электричество.',
     clock: 'Лунное время', t_out: 'Снаружи', t_suit: 'Скафандр', ph_day: 'День', ph_night: 'Ночь', ph_dawn: 'Рассвет', ph_dusk: 'Закат',
     w_cold: 'СКАФАНДР ЗАМЕРЗАЕТ — выйдите на солнце или в луч зеркала!', w_hot: 'СКАФАНДР ПЕРЕГРЕВАЕТСЯ — уйдите в тень или в ровер!',
     w_dark: 'Тень кратера: нет воздуха, чтобы удерживать тепло — здесь −173 °C! Поставьте зеркала на кромке.',
@@ -414,6 +493,125 @@ function makeGlowTexture(inner, outer) {
   gr.addColorStop(0, inner); gr.addColorStop(0.35, outer); gr.addColorStop(1, 'rgba(0,0,0,0)');
   g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
+
+// ----------------------------------------------------------------- base facilities (outside the dome)
+function makeFacilities(g, mk, sign) {
+  const std = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.55, metalness: 0.55 }, o));
+  const blueGrey = std(0x3a4a62), darkBlue = std(0x1f2a3c), steel = std(0xaab4c2, { roughness: 0.35, metalness: 0.8 });
+  const regolith = std(0x6f6862, { roughness: 1, metalness: 0, side: THREE.DoubleSide }), concrete = std(0x8a8a86, { roughness: 0.9, metalness: 0.05 });
+  const orangeGlow = new THREE.MeshBasicMaterial({ color: 0xff9a3c }), blueGlow = new THREE.MeshBasicMaterial({ color: 0x6fc3ff });
+  const cylX = (r, l, m, x, y, z) => { const o = mesh(new THREE.CylinderGeometry(r, r, l, 16), m, x, y, z); o.rotation.z = Math.PI / 2; g.add(o); return o; };
+  const cylZ = (r, l, m, x, y, z) => { const o = mesh(new THREE.CylinderGeometry(r, r, l, 16), m, x, y, z); o.rotation.x = Math.PI / 2; g.add(o); return o; };
+  const cyl = (r, h, m, x, y, z, seg = 18) => { const o = mesh(new THREE.CylinderGeometry(r, r, h, seg), m, x, y, z); g.add(o); return o; };
+  const gauge = (x, y, z, ry, color, h = 1.6) => {          // vertical level gauge (scale.y = fill)
+    const back = mk(0.36, h + 0.1, 0.06, darkBlue, x, y, z, ry);
+    const geo = new THREE.BoxGeometry(0.24, 1, 0.08); geo.translate(0, 0.5, 0);
+    const f = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color })); f.position.set(x, y - h / 2, z); f.rotation.y = ry; f.userData.h = h;
+    const off = 0.05; f.position.x += Math.sin(ry) * off; f.position.z += Math.cos(ry) * off; g.add(f); return f;
+  };
+  const R = {};
+
+  // ===== LEFT: OXYGEN PRODUCTION + WATER RECYCLING =====
+  mk(5.4, 2.6, 2.6, blueGrey, -28.5, 1.3, 0);                                      // pressurised tunnel from the dome module
+  mk(5.5, 0.12, 0.12, orangeGlow, -28.5, 2.66, 1.32); mk(5.5, 0.12, 0.12, orangeGlow, -28.5, 2.66, -1.32);
+  mk(15, 0.15, 20, concrete, -38, 0.08, 0);                                        // facility pad
+  // water recycling: two big purified-water tanks + purifier
+  [-35, -38.9].forEach(x => { cyl(1.5, 4.2, steel, x, 2.1, -7); cyl(1.52, 0.5, new THREE.MeshBasicMaterial({ color: 0x38b6ff }), x, 2.6, -7); });
+  R.waterGauge = gauge(-35, 2.2, -5.42, 0, 0x38b6ff);
+  mk(2.2, 2.4, 2.8, darkBlue, -42.5, 1.2, -7); mk(0.1, 0.5, 2.2, blueGlow, -41.38, 1.9, -7);
+  cylX(0.14, 7.5, steel, -38.8, 0.6, -5.4);                                        // water pipe to the electrolysis machine
+  sign('WATER RECYCLING', '#38b6ff', -37, 4.9, -5.5, 0, 3.2);
+  // electrolysis machine (water + electricity -> oxygen + hydrogen)
+  mk(4.4, 3.2, 4.4, darkBlue, -35, 1.6, 0);
+  R.elecTubes = [];
+  [-1, 0, 1].forEach(i => { const t = mesh(new THREE.CylinderGeometry(0.22, 0.22, 2.2, 12), new THREE.MeshBasicMaterial({ color: 0x2a5a78 }), -32.72, 1.6, i * 1.1, false); g.add(t); R.elecTubes.push(t); });
+  mk(0.1, 0.12, 4.2, orangeGlow, -32.75, 3.05, 0);
+  sign('ELECTROLYSIS', '#66e6ff', -32.7, 3.9, 0, Math.PI / 2, 2.6);
+  // drying + compression, then the big oxygen tanks
+  cyl(0.55, 2.2, steel, -38.7, 1.1, 1.0); mk(0.1, 0.1, 0.9, blueGlow, -38.12, 1.6, 1.0);
+  mk(2.4, 1.8, 1.8, blueGrey, -39, 0.9, -1.6); mk(0.1, 0.5, 1.2, orangeGlow, -37.78, 1.2, -1.6);
+  sign('DRYER + COMPRESSOR', '#cfeaff', -38.6, 2.9, -0.3, Math.PI / 2, 2.6);
+  [2.6, 5.4].forEach(z => { cylX(1.25, 5.2, std(0xe8edf3, { metalness: 0.35 }), -41.6, 1.45, z); mk(0.3, 0.9, 0.3, steel, -40, 0.45, z); mk(0.3, 0.9, 0.3, steel, -43.2, 0.45, z); });
+  R.o2Gauge = gauge(-38.85, 1.6, 4.0, Math.PI / 2, 0x8ff0ff, 2.2);
+  sign('OXYGEN STORAGE', '#8ff0ff', -41.6, 3.6, 4.0, Math.PI / 2, 2.8);
+  // separate hydrogen tank (by-product)
+  g.add(mesh(new THREE.SphereGeometry(1.6, 20, 14), std(0xd8642a, { metalness: 0.3 }), -34.6, 2.2, 7));
+  cyl(0.18, 0.7, steel, -34.6, 0.35, 7);
+  R.h2Gauge = gauge(-32.85, 1.6, 7, Math.PI / 2, 0xff9a6a, 1.4);
+  sign('HYDROGEN', '#ff9a6a', -34.6, 4.4, 7, Math.PI / 2, 2.0);
+  cylZ(0.12, 6.5, steel, -34.6, 2.9, 3.4);                                         // pipe: electrolysis -> hydrogen tank
+  cylX(0.12, 5.6, steel, -38.0, 2.9, 2.6);                                         // pipe: electrolysis -> dryer -> oxygen tanks
+  // control panel (E)
+  mk(0.5, 1.4, 1.4, darkBlue, PROD_PANEL.x - 0.3, 0.9, PROD_PANEL.z);
+  R.panelGlow = mk(0.06, 0.8, 1.1, new THREE.MeshBasicMaterial({ color: 0x66e6ff }), PROD_PANEL.x - 0.02, 1.1, PROD_PANEL.z);
+  sign('OXYGEN CONTROL  E', '#66e6ff', PROD_PANEL.x - 0.05, 2.15, PROD_PANEL.z, Math.PI / 2, 2.2);
+
+  // ===== BEHIND: POWER STATION (solar panels + battery) =====
+  for (let r = 0; r < 2; r++) for (let i = -3; i <= 3; i++) {
+    const p = mesh(new THREE.BoxGeometry(4, 0.12, 3.2), M.solar, i * 4.5, 1.9, -43.5 - r * 5); p.rotation.x = 0.6; g.add(p);
+    g.add(mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.9, 6), M.grey, i * 4.5, 0.95, -43.5 - r * 5));
+  }
+  mk(7.2, 3, 4.4, darkBlue, 0, 1.5, -34);
+  mk(7.3, 0.14, 0.14, orangeGlow, 0, 3.05, -31.78);
+  R.battGauge = gauge(-2.2, 1.6, -31.75, 0, 0x7cff9a, 1.8);
+  sign('POWER STATION', '#ffd877', 1.3, 2.4, -31.74, 0, 3.0);
+  cylZ(0.12, 6, M.dark, 0, 0.12, -28.8);                                           // cable to the base
+  cylX(0.12, 30, M.dark, -17, 0.12, -31.6);                                        // cable to the oxygen facility
+  cylZ(0.12, 31, M.dark, -32, 0.12, -16.2);
+
+  // ===== RIGHT: GREENHOUSE + ROVER GARAGE =====
+  const ghGlass = new THREE.MeshStandardMaterial({ color: 0xbfe6d0, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.25, depthWrite: false, side: THREE.DoubleSide });
+  g.add(mesh(new THREE.SphereGeometry(5.6, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2), ghGlass, 30, 0.2, -27, false));
+  g.add(mesh(new THREE.CylinderGeometry(5.7, 5.8, 0.4, 28), darkBlue, 30, 0.2, -27));
+  const leaf = new THREE.MeshStandardMaterial({ color: 0x3fae55, emissive: 0x1d6b2c, emissiveIntensity: 0.6, roughness: 0.8 });
+  for (let r = -1; r <= 1; r++) { mk(7, 0.5, 1.1, blueGrey, 30, 0.5, -27 + r * 2.2); for (let i = -3; i <= 3; i++) { const p = mesh(new THREE.ConeGeometry(0.42, 1.1, 7), leaf, 30 + i * 0.95, 1.3, -27 + r * 2.2, false); g.add(p); } }
+  mk(7, 0.08, 0.3, new THREE.MeshBasicMaterial({ color: 0x8dff9a }), 30, 3.4, -27);
+  sign('GREENHOUSE', '#8dff9a', 30, 4.4, -21.2, 0, 2.6);
+  cylX(0.2, 8, steel, 22, 3.2, -16); mk(0.3, 3.2, 0.3, steel, 18.2, 1.6, -16); mk(0.3, 3.2, 0.3, steel, 25.8, 1.6, -16);   // life-support pipe
+  // rover garage
+  const GW = GARAGE.x1 - GARAGE.x0, GD = GARAGE.z1 - GARAGE.z0, gx = (GARAGE.x0 + GARAGE.x1) / 2, gz = (GARAGE.z0 + GARAGE.z1) / 2;
+  mk(0.6, 5.2, GD, blueGrey, GARAGE.x0 - 0.3, 2.6, gz); mk(0.6, 5.2, GD, blueGrey, GARAGE.x1 + 0.3, 2.6, gz);
+  mk(GW + 1.2, 5.2, 0.6, blueGrey, gx, 2.6, GARAGE.z0 - 0.3);
+  mk(GARAGE.door0 - GARAGE.x0 + 0.6, 5.2, 0.6, blueGrey, (GARAGE.x0 - 0.6 + GARAGE.door0) / 2, 2.6, GARAGE.z1 - 0.3);
+  mk(GARAGE.x1 + 0.6 - GARAGE.door1, 5.2, 0.6, blueGrey, (GARAGE.door1 + GARAGE.x1 + 0.6) / 2, 2.6, GARAGE.z1 - 0.3);
+  mk(GW + 1.4, 0.4, GD + 1.4, darkBlue, gx, 5.4, gz);
+  mk(GARAGE.door1 - GARAGE.door0, 1.0, 0.7, darkBlue, (GARAGE.door0 + GARAGE.door1) / 2, 4.75, GARAGE.z1 - 0.3);   // rolled-up door
+  mk(GARAGE.door1 - GARAGE.door0, 0.14, 0.14, orangeGlow, (GARAGE.door0 + GARAGE.door1) / 2, 4.2, GARAGE.z1 + 0.05);
+  [GARAGE.door0, GARAGE.door1].forEach(x => mk(0.14, 4.1, 0.14, orangeGlow, x, 2.05, GARAGE.z1 + 0.05));
+  mk(GW - 1, 0.06, 0.4, new THREE.MeshBasicMaterial({ color: 0xffd877 }), gx, 0.05, GARAGE.z1 - 3);   // parking line
+  mk(0.5, 1.3, 1.2, darkBlue, GARAGE.door1 + 0.8, 0.9, GARAGE.z1 + 0.9);          // unloading terminal
+  mk(0.06, 0.7, 0.9, new THREE.MeshBasicMaterial({ color: 0xffb54d }), GARAGE.door1 + 0.53, 1.1, GARAGE.z1 + 0.9);
+  sign('ROVER GARAGE  E', '#ffb54d', gx, 6.2, GARAGE.z1 + 0.05, 0, 3.6);
+  for (let i = 0; i < 4; i++) mk(0.9, 0.5, 0.06, blueGlow, GARAGE.x1 + 0.62, 3.2, GARAGE.z0 + 2.5 + i * 3);   // blue windows
+  cylX(0.2, 8, steel, 26, 3.4, 20); mk(0.3, 3.4, 0.3, steel, 22.2, 1.7, 20);       // pipe from the base
+
+  // ===== FRONT-LEFT: RADIATION SHELTER (covered with Moon soil) =====
+  const S0 = RAD_SHELTER, sx = (S0.x0 + S0.x1) / 2, sz = (S0.z0 + S0.z1) / 2;
+  const mound = mesh(new THREE.SphereGeometry(1, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2), regolith, sx - 0.2, 0, sz); mound.scale.set(6.4, 3.5, 5.4); g.add(mound);
+  mk(0.6, 2.7, 6.6, concrete, S0.x0 - 0.3, 1.35, sz); mk(9, 2.7, 0.6, concrete, sx + 0.5, 1.35, S0.z0 - 0.3); mk(9, 2.7, 0.6, concrete, sx + 0.5, 1.35, S0.z1 + 0.3);
+  mk(2.4, 2.9, 0.6, concrete, -20.5, 1.45, 30.1); mk(2.4, 2.9, 0.6, concrete, -20.5, 1.45, 33.9);   // thick entrance portal
+  mk(2.4, 0.7, 4.4, concrete, -20.5, 2.75, 32);
+  R.shDoor = mk(0.45, 2.3, 2.0, std(0x5a5f66, { metalness: 0.8, roughness: 0.4 }), S0.door.x, 1.15, S0.door.z);   // thick reinforced door
+  mk(7.6, 0.08, 0.5, new THREE.MeshBasicMaterial({ color: 0xfff1c9 }), sx, 2.55, sz);   // interior lights
+  mk(7.2, 0.5, 0.8, blueGrey, sx, 0.25, S0.z1 - 0.6);                              // benches
+  const tref = document.createElement('canvas'); tref.width = 640; tref.height = 160; const tk = tref.getContext('2d');
+  tk.fillStyle = '#ffd400'; tk.fillRect(0, 0, 640, 160); tk.fillStyle = '#111'; tk.font = '700 62px sans-serif'; tk.textAlign = 'center'; tk.textBaseline = 'middle'; tk.fillText('☢ RADIATION SHELTER', 320, 84, 610);
+  const tt = new THREE.CanvasTexture(tref); tt.colorSpace = THREE.SRGBColorSpace;
+  const tsg = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), new THREE.MeshBasicMaterial({ map: tt })); tsg.position.set(-19.25, 3.5, 32); tsg.rotation.y = Math.PI / 2; g.add(tsg);
+  [30.6, 33.4].forEach(z => mk(0.08, 0.08, 0.6, orangeGlow, -19.25, 2.95, z));
+
+  // ===== COMMUNICATION STATION =====
+  cyl(0.5, 1, concrete, -28, 0.5, -28, 10);
+  for (let i = 0; i < 3; i++) { const a = i / 3 * Math.PI * 2; const leg = mesh(new THREE.CylinderGeometry(0.08, 0.14, 15, 6), steel, -28 + Math.sin(a) * 0.6, 7.5, -28 + Math.cos(a) * 0.6); g.add(leg); }
+  const dish = mesh(new THREE.SphereGeometry(3, 22, 10, 0, Math.PI * 2, 0, Math.PI / 3.2), std(0xe8edf3, { side: THREE.DoubleSide, metalness: 0.3 }), -28, 14, -28); dish.rotation.x = -2.2; dish.rotation.z = 0.5; g.add(dish);
+  R.commLight = mesh(new THREE.SphereGeometry(0.25, 10, 8), new THREE.MeshBasicMaterial({ color: 0xff3322 }), -28, 15.4, -28, false); g.add(R.commLight);
+  sign('COMMUNICATIONS', '#ff9a6a', -28, 2.2, -26.4, 0, 2.6);
+
+  // ===== THERMAL CONTROL: radiator fins on the modules =====
+  [-17, 17].forEach(x => { for (let i = -1; i <= 1; i++) { const f = mesh(new THREE.BoxGeometry(1.6, 0.06, 3.4), std(0xf4f6f8, { metalness: 0.2 }), x + i * 2.2, 7.4, 0); f.rotation.x = Math.PI / 2; g.add(f); } });
+  return R;
 }
 
 // ----------------------------------------------------------------- terrain chunks
@@ -641,6 +839,49 @@ function makeLab() {
   mk(3.2, 1.0, 0.9, M.dark, WORKSHOP.x, 0.6, WORKSHOP.z - 0.5); mk(3.4, 2.2, 0.2, M.grey, 0, 1.2, -8.55);
   mk(2.6, 0.9, 0.06, new THREE.MeshBasicMaterial({ color: 0x66e6ff, transparent: true, opacity: 0.7 }), 0, 1.7, -8.4);
   sign('WORKSHOP  R', '#ffb54d', 0, 2.9, -8.4, 0);
+  // ---- KID-FRIENDLY NASA OXYGEN & WATER STATION (Southwest Dome Wall: 3 Connected Machines!)
+  const o2Group = new THREE.Group();
+  o2Group.position.set(O2_LAB.x, 0, O2_LAB.z);
+  o2Group.rotation.y = Math.PI / 4;
+  g.add(o2Group);
+  // Base platform for the 3-part Life Support Station
+  o2Group.add(mesh(new THREE.BoxGeometry(4.4, 0.22, 1.5), M.dark, 0, 0.11, 0));
+
+  // PART 1 (Left): 103 L Clean Water Tank (WRS) with glowing blue water window
+  o2Group.add(mesh(new THREE.CylinderGeometry(0.52, 0.52, 2.1, 18), M.white, -1.45, 1.25, 0));
+  o2Group.add(mesh(new THREE.CylinderGeometry(0.54, 0.54, 0.9, 18), new THREE.MeshBasicMaterial({ color: 0x38b6ff }), -1.45, 1.1, 0, false));
+  // Pipe connecting Part 1 (Water Tank) -> Part 2 (Water-Splitter)
+  o2Group.add(mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.0, 8).rotateZ(Math.PI / 2), M.orange, -0.72, 1.6, 0));
+
+  // PART 2 (Center): OGA Water-Splitter (Electrolyzer: Water + Electricity -> O2 + H2)
+  o2Group.add(mesh(new THREE.BoxGeometry(1.25, 2.25, 1.05), M.dark, 0, 1.32, 0));
+  const ogaGlow = mesh(new THREE.CylinderGeometry(0.34, 0.34, 1.55, 16), new THREE.MeshBasicMaterial({ color: 0x66e6ff, transparent: true, opacity: 0.85 }), 0, 1.35, 0.32, false);
+  o2Group.add(ogaGlow);
+  // Pipe connecting Part 2 (Leftover H2) -> Part 3 (Breath Recycler)
+  o2Group.add(mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.0, 8).rotateZ(Math.PI / 2), M.grey, 0.72, 1.8, 0));
+
+  // PART 3 (Right): CDRA + Sabatier / Bosch Breath Recycler (CO2 + H2 -> Water!)
+  o2Group.add(mesh(new THREE.BoxGeometry(1.15, 2.1, 1.0), M.white, 1.45, 1.25, 0));
+  o2Group.add(mesh(new THREE.BoxGeometry(0.85, 0.85, 0.12), new THREE.MeshBasicMaterial({ color: 0x6ee7a0 }), 1.45, 1.45, 0.48, false));
+
+  // Clear kid-friendly signs above the 3 parts (plain words, no science symbols)
+  sign('1. WATER 103L',  '#38b6ff', O2_LAB.x - 1.0, 2.65, O2_LAB.z + 1.0, Math.PI / 4, 1.7);
+  sign('2. WATER SPLITTER  O', '#66e6ff', O2_LAB.x, 3.15, O2_LAB.z, Math.PI / 4, 2.2);
+  sign('3. RECYCLER  G', '#6ee7a0', O2_LAB.x + 1.0, 2.65, O2_LAB.z - 1.0, Math.PI / 4, 1.8);
+
+  // PART 4A (Inside Airlock): Suit Oxygen Refill Hose (SCU: 10.2 psi Base -> 4.3 psi Suit)
+  mk(0.38, 1.75, 1.35, M.orange, -2.82, 1.35, 13.1);
+  mk(0.14, 0.95, 0.95, new THREE.MeshBasicMaterial({ color: 0xffd877 }), -2.61, 1.4, 13.1);
+  const hose = mesh(new THREE.TorusGeometry(0.32, 0.06, 8, 24), M.dark, -2.55, 1.15, 13.1);
+  hose.rotation.y = Math.PI / 2; g.add(hose);
+  sign('SUIT OXYGEN REFILL', '#ffd877', -2.78, 2.65, 13.1, Math.PI / 2, 2.5);
+
+  // PART 4B (Outside by Airlock): Big 30.5 kg Oxygen Bank + 103 L Water Reserve Tank
+  g.add(mesh(new THREE.CylinderGeometry(1.6, 1.6, 4.8, 16), M.white, 20, 2.4, 12.5));
+  g.add(mesh(new THREE.CylinderGeometry(1.65, 1.65, 0.75, 16), new THREE.MeshBasicMaterial({ color: 0x38b6ff }), 20, 3.4, 12.5, false));
+  sign('BIG OXYGEN BANK', '#ffb54d', 17.6, 4.8, 18.0, -Math.PI / 2, 3.0);
+  sign('WATER BANK: 103 L', '#38b6ff', 18.2, 4.2, 12.5, -Math.PI / 2, 3.0);
+  const fac = makeFacilities(g, mk, sign);
   // solar farm
   for (let r = 0; r < 2; r++) for (let i = -2; i <= 2; i++) {
     const p = mesh(new THREE.BoxGeometry(6, 0.18, 3.4), M.solar, 34 + r * 7, 2.2, i * 5.2);
@@ -706,7 +947,7 @@ function makeLab() {
   const beam = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 160, 12, 1, true),
     new THREE.MeshBasicMaterial({ color: 0x55dfff, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
   beam.position.y = 80; g.add(beam);
-  return { group: g, door, holo, table, tankFill, makerGlow };
+  return { group: g, door, holo, table, tankFill, makerGlow, fac };
 }
 
 // ----------------------------------------------------------------- audio
@@ -814,6 +1055,47 @@ const CSS = `
 .mg-storm.hit{animation:mgstorm .8s infinite}.mg-storm.safe{border-color:rgba(110,231,160,.7);background:linear-gradient(160deg,rgba(18,80,60,.82),rgba(8,40,30,.86));animation:none}.mg-storm.safe b{color:#C9FFE3}
 @keyframes mgstorm{50%{box-shadow:0 0 34px rgba(255,60,40,.75)}}
 .mg-root.storm .mg-view{top:190px}
+.mg-o2bank{background:rgba(12,24,38,.75);border:1.5px solid rgba(102,230,255,.35);border-radius:11px;padding:6px 7px;margin-top:4px;transition:border-color .25s,box-shadow .25s}
+.mg-o2bank.fast{border-color:#ffb54d;box-shadow:0 0 12px rgba(255,181,77,.35)}
+.mg-o2bank.super{border-color:#ff6a4d;box-shadow:0 0 14px rgba(255,106,77,.5);animation:mgblink .55s infinite}
+.mg-o2caps{display:grid;grid-template-columns:8fr 1.1fr;gap:4px;align-items:center}
+.mg-o2main{position:relative;display:grid;grid-template-columns:repeat(8,1fr);gap:4px}
+.mg-o2main .mk{position:absolute;top:-3px;bottom:-3px;width:3px;margin-left:-1px;background:#fff;box-shadow:0 0 6px rgba(255,255,255,.9);display:none;border-radius:2px;z-index:2}
+.mg-o2cap{height:14px;border-radius:5px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);overflow:hidden;position:relative}
+.mg-o2cap i{display:block;width:100%;height:100%;background:linear-gradient(180deg,#8ff0ff,#2bb8e8);transition:height .15s linear;position:absolute;bottom:0;left:0}
+.mg-o2cap.sop{border-color:rgba(255,106,77,.55)}
+.mg-o2cap.sop i{background:linear-gradient(180deg,#ff9a7a,#ff4530)}
+.mg-o2badge{margin-top:5px;padding:3px 7px;border-radius:6px;font-size:11.5px;font-weight:700;text-align:center;background:rgba(102,230,255,.14);color:#b8f4ff;transition:background .2s,color .2s}
+.mg-o2badge.save{background:rgba(110,231,160,.18);color:#8ff7b8}
+.mg-o2badge.fast{background:rgba(255,181,77,.22);color:#ffd877}
+.mg-o2badge.super{background:rgba(255,106,77,.28);color:#ffb09c}
+.mg-eclss{position:absolute;right:18px;top:470px;width:236px;padding:11px 14px;font-size:12px;line-height:1.55}
+.mg-eclss-t{font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#66e6ff;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center}
+.mg-eclss-pipe{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:7px;text-align:center}
+.mg-eclss-part{background:rgba(12,24,38,.65);border:1px solid rgba(255,255,255,.14);border-radius:9px;padding:5px 4px}
+.mg-eclss-part small{display:block;font-size:9.5px;color:#BBBAC6;text-transform:uppercase}
+.mg-eclss-part b{display:block;font-size:11.5px;color:#fff;margin-top:1px}
+.mg-eclss-b{height:6px;border-radius:99px;background:rgba(255,255,255,.12);margin:4px 0 6px;overflow:hidden}
+.mg-eclss-b span{display:block;height:100%;width:0%;background:linear-gradient(90deg,#38b6ff,#66e6ff,#6ee7a0);transition:width .2s}
+.mg-eclss-r{display:flex;justify-content:space-between;font-size:11.5px;color:#BBBAC6}
+.mg-eclss-r b{color:#9AF3C2}
+.mg-eclss-btns{display:flex;gap:5px;margin-top:7px}
+.mg-eclss-btn{flex:1;padding:5px 6px;border-radius:8px;border:1px solid rgba(183,206,206,.3);background:rgba(255,255,255,.08);color:#E2E2E2;font:inherit;font-size:10.5px;font-weight:700;cursor:pointer;text-align:center}
+.mg-eclss-btn:hover{border-color:#66e6ff;color:#66e6ff}
+.mg-kid-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:left;margin:10px 0}
+.mg-kid-box{background:rgba(15,28,44,.7);border:1px solid rgba(102,230,255,.25);border-radius:14px;padding:12px 14px}
+.mg-kid-box h3{margin:0 0 6px;font-size:14px;color:#66e6ff}
+.mg-kid-box p{margin:0;font-size:12.8px;line-height:1.5;color:#E2E2E2}
+@media (max-width:900px){.mg-eclss{display:none}.mg-kid-grid{grid-template-columns:1fr}}
+.mg-panel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(390px,92vw);padding:16px 18px 14px;display:none;z-index:5}
+.mg-panel h3{margin:0 0 4px;font-size:15px;letter-spacing:.08em;color:#E2E2E2}.mg-panel .sub{margin:0 0 8px;font-size:12px;color:#BBBAC6}
+.mg-panel .pr{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.07);font-size:13px;color:#BBBAC6}.mg-panel .pr b{color:#E2E2E2;text-align:right}
+.mg-panel .pl{margin-top:8px;font-size:11.5px;color:#BBBAC6}.mg-panel .pb{height:8px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden;margin-top:4px}.mg-panel .pb span{display:block;height:100%;width:0;background:linear-gradient(90deg,#38b6ff,#66e6ff,#6ee7a0);transition:width .2s}
+.mg-panel .nasa{margin:8px 0 0;font-size:11.5px;line-height:1.45;color:#9fb7c9}
+.mg-panel .pbtns{display:flex;gap:8px;margin-top:10px}.mg-panel .pbtns .mg-btn{margin:0;min-height:42px;font-size:11.5px;letter-spacing:.08em}.mg-panel .mg-btn:disabled{opacity:.45;cursor:not-allowed}
+.mg-panel>.mg-btn{min-height:36px;font-size:11px;margin-top:8px}.mg-panel .msg{min-height:18px;margin:8px 0 0;font-size:12.5px;font-weight:700;color:#FFD877;text-align:center}
+.mg-radok{position:absolute;left:50%;top:98px;transform:translateX(-50%);padding:9px 20px;text-align:center;display:none;border-color:rgba(110,231,160,.7);background:linear-gradient(160deg,rgba(18,80,60,.82),rgba(8,40,30,.86))}
+.mg-radok b{display:block;font-size:16px;letter-spacing:.1em;color:#C9FFE3}.mg-radok span{display:block;margin-top:3px;font-size:12px;color:#DFFFF0}
 .mg-env{position:absolute;right:18px;top:344px;width:208px;padding:10px 14px;font-size:12.5px;line-height:1.65}
 .mg-env .clk{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}.mg-env .clk b{font-size:17px;letter-spacing:.06em;font-variant-numeric:tabular-nums}.mg-env .clk span{color:#BBBAC6;font-size:11.5px;letter-spacing:.1em;text-transform:uppercase}
 .mg-env .tr{display:flex;justify-content:space-between;color:#BBBAC6}.mg-env .tr b{color:#E2E2E2;font-variant-numeric:tabular-nums}
@@ -900,8 +1182,87 @@ function createGame(opts) {
     r.innerHTML = '<div class="mg-rh"><span class="n"></span><span class="mg-rv v"></span></div><div class="mg-bar"><span></span></div>';
     stats.appendChild(r); bar[k] = { row: r, n: r.querySelector('.n'), v: r.querySelector('.v'), f: r.querySelector('.mg-bar span') };
   });
-  bar.oxygen.f.parentNode.insertAdjacentHTML('beforeend', '<i class="mk"></i>'); bar.oxygen.mk = bar.oxygen.row.querySelector('.mk');
+  // Replace plain oxygen bar with Kid-Friendly 8-Capsule Oxygen Bank + 1 Red Emergency Capsule
+  bar.oxygen.row.querySelector('.mg-bar').style.display = 'none';
+  const o2Bank = el('div', 'mg-o2bank');
+  const o2CapsWrap = el('div', 'mg-o2caps'), o2Main = el('div', 'mg-o2main');
+  const o2Caps = [];
+  for (let i = 0; i < 9; i++) {
+    const cap = el('div', 'mg-o2cap' + (i === 8 ? ' sop' : ''), '<i></i>');
+    (i < 8 ? o2Main : o2CapsWrap).appendChild(cap);
+    if (i === 7) o2CapsWrap.appendChild(o2Main);
+    o2Caps.push(cap.querySelector('i'));
+  }
+  o2CapsWrap.insertBefore(o2Main, o2CapsWrap.firstChild);
+  const o2Badge = el('div', 'mg-o2badge', '');
+  o2Bank.append(o2CapsWrap, o2Badge);
+  bar.oxygen.row.appendChild(o2Bank);
+  o2Main.insertAdjacentHTML('beforeend', '<i class="mk"></i>'); bar.oxygen.mk = o2Main.querySelector('.mk');   // the "way home" line sits on the capsules
   bar.oxygen.row.insertAdjacentHTML('beforeend', '<div class="mg-home"></div>'); bar.oxygen.home = bar.oxygen.row.querySelector('.mg-home');
+
+  // Visual 3-Part Base Oxygen & Water Pipeline Card (.mg-eclss)
+  const eclssBox = el('div', 'mg-eclss mg-glass',
+    '<div class="mg-eclss-t"><span class="et"></span><span class="ep"></span></div>' +
+    '<div class="mg-eclss-pipe">' +
+      '<div class="mg-eclss-part"><small class="p1L">1. Water</small><b class="p1V">103 L</b></div>' +
+      '<div class="mg-eclss-part"><small class="p2L">2. Water Splitter</small><b class="p2V">ON</b></div>' +
+      '<div class="mg-eclss-part"><small class="p3L">3. Oxygen Bank</small><b class="p3V">30.5 kg</b></div>' +
+    '</div>' +
+    '<div class="mg-eclss-b"><span class="ogB"></span></div>' +
+    '<div class="mg-eclss-r"><span class="pwL"></span><b class="pwV"></b></div>' +
+    '<div class="mg-eclss-r"><span class="coL"></span><b class="coV"></b></div>' +
+    '<div class="mg-eclss-btns">' +
+      '<button type="button" class="mg-eclss-btn" id="btnO">O</button>' +
+      '<button type="button" class="mg-eclss-btn" id="btnG">G</button>' +
+      '<button type="button" class="mg-eclss-btn" id="btnN">N</button>' +
+    '</div>'
+  );
+  root.appendChild(eclssBox);
+  const ovNasa = el('div', 'mg-ov'); root.appendChild(ovNasa);
+  const panelEl = el('div', 'mg-panel mg-glass'); root.appendChild(panelEl);
+  const radOk = el('div', 'mg-radok mg-glass', '<b></b><span></span>'); root.appendChild(radOk);
+  function buildPanel() {
+    const t = S.panel; if (!t) return;
+    const row = (k, cls) => '<div class="pr"><span>' + tr(k) + '</span><b class="' + cls + '"></b></div>';
+    let h = '';
+    if (t === 'prod') h = '<h3>' + tr('pr_title') + '</h3><p class="sub">' + tr('pr_sub') + '</p>' + row('pr_water', 'vW') + row('pr_power', 'vP') + row('pr_o2', 'vO') + row('pr_max', 'vM') + row('pr_h2', 'vH') + row('pr_status', 'vS') +
+      '<div class="pl">' + tr('pr_prog') + '</div><div class="pb"><span class="vB"></span></div><p class="nasa">' + tr('pr_nasa') + '</p>' +
+      '<div class="pbtns"><button type="button" class="mg-btn pri" id="pStart">' + tr('b_start') + '</button><button type="button" class="mg-btn" id="pStop">' + tr('b_stop') + '</button></div>';
+    else if (t === 'refill') h = '<h3>' + tr('rf_title') + '</h3>' + row('rf_suit', 'vSu') + row('rf_cap', 'vCa') + row('rf_base', 'vBa') + row('rf_can', 'vCn') +
+      '<div class="pbtns"><button type="button" class="mg-btn pri" id="pRefill">' + tr('b_refill') + '</button></div>';
+    else if (t === 'garage') h = '<h3>' + tr('gr_title') + '</h3>' + row('gr_pack', 'vPk') + row('gr_cargo', 'vCg') + row('gr_total', 'vTo') +
+      '<div class="pbtns"><button type="button" class="mg-btn pri" id="pUnload">' + tr('b_unload') + '</button></div>';
+    panelEl.innerHTML = h + '<p class="msg"></p><button type="button" class="mg-btn" id="pClose">' + tr('b_close') + ' (E)</button>';
+    panelEl.dataset.type = t; panelEl.style.display = 'block';
+    const on = (id, fn) => { const b = panelEl.querySelector(id); if (b) b.onclick = () => { if (!S.over) fn(); updatePanel(); }; };
+    on('#pStart', startProduction); on('#pStop', stopProduction); on('#pRefill', refillSuit); on('#pUnload', unloadCrystals); on('#pClose', closePanel);
+    updatePanel();
+  }
+  function updatePanel() {
+    const t = S.panel; if (!t) return;
+    if (panelEl.dataset.type !== t) { buildPanel(); return; }
+    const sys = S.o2Sys, q = c => panelEl.querySelector(c);
+    if (t === 'prod') {
+      dset(q('.vW'), 'text', sys.baseWaterL.toFixed(1) + ' L'); dset(q('.vP'), 'text', sys.powerKWh.toFixed(1) + ' / ' + BASE_CFG.BATTERY_KWH + ' kWh');
+      dset(q('.vO'), 'text', sys.baseO2Kg.toFixed(2) + ' kg'); dset(q('.vM'), 'text', NASA_O2.BASE_TANK_MAX_KG.toFixed(1) + ' kg');
+      dset(q('.vH'), 'text', sys.h2Kg.toFixed(2) + ' / ' + BASE_CFG.H2_MAX_KG + ' kg');
+      dset(q('.vS'), 'text', tr('st_' + ({ run: 'run', stop: 'stop', nowater: 'nowater', nopower: 'nopower', full: 'full', h2full: 'h2full' })[sys.prodStatus]) + (sys.ogaMode === 'max' && sys.prodStatus === 'run' ? ' ⚡' : ''));
+      dset(q('.vS'), 'color', sys.prodStatus === 'run' ? '#6EE7A0' : sys.prodStatus === 'stop' ? '#BBBAC6' : '#FFB54D');
+      dset(q('.vB'), 'width', Math.round(sys.batchGrams) + '%');
+    } else if (t === 'refill') {
+      const needG = (NASA_O2.SUIT_MAX_G - sys.suitGrams) + (NASA_O2.SOP_MAX_G - sys.sopGrams);
+      dset(q('.vSu'), 'text', Math.round(sys.suitGrams / NASA_O2.SUIT_MAX_G * 100) + '% (' + Math.round(sys.suitGrams + sys.sopGrams) + ' g)');
+      dset(q('.vCa'), 'text', tr('rf_cap_v') + ' = ' + (NASA_O2.SUIT_MAX_G + NASA_O2.SOP_MAX_G) + ' g');
+      dset(q('.vBa'), 'text', sys.baseO2Kg.toFixed(2) + ' kg (' + Math.round(S.tank) + '%)');
+      dset(q('.vCn'), 'text', Math.round(Math.max(0, Math.min(needG, sys.baseO2Kg * 1000))) + ' g');
+    } else if (t === 'garage') {
+      dset(q('.vPk'), 'text', S.carried + ' / ' + CAP_FOOT);
+      dset(q('.vCg'), 'text', S.cargo + ' / ' + CAP_CARGO + (S.cargo > 0 && !roverAtGarage() ? ' ' + tr('gr_cargoFar') : ''));
+      dset(q('.vTo'), 'text', String(S.delivered));
+      const b = q('#pUnload'); if (b) b.disabled = S.carried + (roverAtGarage() ? S.cargo : 0) <= 0;
+    }
+    dset(q('.msg'), 'text', S.panelMsgT > 0 ? S.panelMsg : '');
+  }
   if (MISSION || STORM) bar.tank.row.style.display = 'none';
   const inv = el('div', 'mg-inv mg-glass'); root.appendChild(inv);
   const tipEl = el('div', 'mg-tip mg-glass'); root.appendChild(tipEl);
@@ -1220,7 +1581,29 @@ function createGame(opts) {
     lastBeepO2: 0, lastRefill: false, doorOpen: 0, toast: 0,
     mission: MISSION, clock: CLOCK_START, amb: 40, suit: 22, sunlit: true, tempT: 0, sunU: { x: SUN.x, z: SUN.z }, tanE: 0.4,
     storm: { on: STORM, phase: 'calm', t: 4, timer: STORM_WARN, valves: [0, 0], pumping: -1, shielded: false, exposed: false, shieldT: 0, clickT: 0 },
-    tankOn: !MISSION && !STORM, tank: MISSION || STORM ? 100 : TANK_START, makerQ: 0, refilling: false, o2Rate: 0, o2Line: 0, homeViaRover: false, respawnT: 0,
+    o2Sys: {
+      suitGrams: 800.0,        // 8 Blue Capsules × 100 g = 800 g Spacesuit Oxygen Bank
+      sopGrams: 75.0,          // 1 Red Emergency Backup Capsule = 75 g (30 min reserve)
+      usingSop: false,         // True when on the Red Emergency Capsule
+      baseO2Kg: MISSION || STORM ? NASA_O2.BASE_TANK_START_KG : TANK_START / 100 * NASA_O2.BASE_TANK_MAX_KG,   // Base Big Oxygen Bank (Level 1 starts low: the base is running out of air)
+      baseWaterL: 103.00,      // Base Water Tank (103.0 L)
+      co2StoredKg: 0.20,       // Trapped exhaled breath (CO2) waiting to be recycled
+      ogaMode: 'standby',      // 'nominal' (Normal) | 'max' (Turbo) | 'standby' (stopped) — the astronaut starts production
+      co2Mode: 'sabatier',     // 'sabatier' (Saves 50% Water) | 'bosch' (Saves 90% Water) | 'off' (0% Saved)
+      boschUnlocked: false,    // Can unlock Bosch Super-Recycler at O2 Station for $300
+      batchGrams: 0.0,         // 0..100 g progress bar making the next Oxygen Capsule from water
+      batchesMade: 0,
+      tier: NASA_O2.TIERS.base_work,
+      sprintSec: 0.0,
+      catchBreathT: 0.0,       // Gentle 4-second cooldown if helmet CO2 filter gets full from sprinting
+      fastDrainWarn: '',       // Kid-friendly alert when moving fast / climbing drains the Oxygen Bank faster
+      refillingSuit: false,
+      powerKWh: BASE_CFG.BATTERY_START_KWH,   // Power Station battery
+      h2Kg: BASE_CFG.H2_START_KG,             // separate hydrogen tank (electrolysis by-product)
+      prodStatus: 'stop'
+    },
+    panel: null, panelMsg: '', panelMsgT: 0,
+    tankOn: !MISSION && !STORM, tank: MISSION || STORM ? NASA_O2.BASE_TANK_START_KG / NASA_O2.BASE_TANK_MAX_KG * 100 : TANK_START, makerQ: 0, refilling: false, o2Rate: 0, o2Line: 0, homeViaRover: false, respawnT: 0,
     mirrors: { pack: 3, placed: 0 }, tower: { prog: 0, fixed: false, fixT: 0 }, winAt: 0, sparkT: 0
   };
   S.car.y = heightAt(S.car.x, S.car.z);
@@ -1378,7 +1761,7 @@ function createGame(opts) {
     }
     shel.water.forEach((w, i) => { w.scale.y = Math.max(0.001, st.valves[i] / VALVE_TIME * 2.5); });
     // the storm: −5 health/s unless shielded; +4/s inside the filled shelter
-    st.exposed = st.phase === 'hit' && !st.shielded;
+    st.exposed = st.phase === 'hit' && !st.shielded && !inRadShelter();
     if (st.exposed) { S.hp -= 5 * dt; S.hurtT = 0.25; }
     if (st.shielded) {
       S.hp = Math.min(100, S.hp + 4 * dt);
@@ -1411,7 +1794,9 @@ function createGame(opts) {
     const k = e.code;
     if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(k)) e.preventDefault();
     keys[k] = true;
-    if (k === 'Escape') { if (mapOpen) { toggleMap(false); return; } if (!S.over) setPause(!S.paused); return; }
+    if (k === 'Escape') { if (S.panel) { closePanel(); return; } if (ovNasa.style.display === 'flex') { toggleNasaModal(); return; } if (mapOpen) { toggleMap(false); return; } if (!S.over) setPause(!S.paused); return; }
+    if (k === 'KeyN' && !e.repeat && !S.over && !mapOpen && ovHelp.style.display !== 'flex') { toggleNasaModal(); return; }
+    if (ovNasa.style.display === 'flex') return;
     if (k === 'KeyM' && !e.repeat) { toggleMap(); return; }
     if (mapOpen) return;
     if (k === 'KeyP') { setPause(!S.paused); return; }
@@ -1420,6 +1805,8 @@ function createGame(opts) {
     if (k === 'KeyC' && !e.repeat && !S.paused && !S.over) toggleView();
     if (k === 'KeyH' && !e.repeat) toggleService('heal');
     if (k === 'KeyR' && !e.repeat) toggleService('repair');
+    if (k === 'KeyO' && !e.repeat && !S.paused && !S.over) cycleOgaMode();
+    if (k === 'KeyG' && !e.repeat && !S.paused && !S.over) cycleCo2Mode();
   };
   const onKeyUp = e => { keys[e.code] = false; };
   let dragging = false, lx = 0, ly = 0;
@@ -1451,6 +1838,221 @@ function createGame(opts) {
   mapBtn.addEventListener('click', () => toggleMap(true));
 
   function flash(text) { viewTag.textContent = text; S.viewUntil = performance.now() + 1900; }
+  // ---------- NASA oxygen exchange engine (exact NASA rates under the hood, kid-friendly on screen)
+  function updateOxygenExchange(dt, inLab, carMode, fwd, slope, stage, sheltered) {
+    const sys = S.o2Sys, f = S.foot;
+    const baseHrs = dt * NASA_O2.BASE_HR_PER_SEC;
+    const evaHrs  = dt * NASA_O2.EVA_HR_PER_SEC;
+
+    // Gentle cooldown if helmet CO2 filter was overloaded by non-stop sprinting
+    if (sys.catchBreathT > 0) sys.catchBreathT = Math.max(0, sys.catchBreathT - dt);
+
+    // 1. PICK EXACT NASA ACTIVITY TIER (Exact ratios work automatically in the math!)
+    const wantSprint = !inLab && !carMode && sys.catchBreathT <= 0 && (((keys.ShiftLeft || keys.ShiftRight) && fwd > 0) || f.air);
+    sys.fastDrainWarn = '';
+
+    if (inLab) {
+      if (S.action || Math.abs(f.speed) > 3.5) sys.tier = NASA_O2.TIERS.base_exerc;
+      else if (Math.abs(f.speed) < 0.2 && sunSin < -0.05) sys.tier = NASA_O2.TIERS.base_sleep;
+      else sys.tier = NASA_O2.TIERS.base_work;
+      sys.sprintSec = Math.max(0, sys.sprintSec - dt * 2);
+      sys.catchBreathT = 0;
+    } else if (carMode) {
+      // DRIVING ROVER: 63.0 g/hr (1.80x In-Base, 37% LESS than walking!)
+      sys.tier = NASA_O2.TIERS.rover;
+      sys.sprintSec = Math.max(0, sys.sprintSec - dt * 1.5);
+    } else {
+      // OUTSIDE IN SPACESUIT ON FOOT (NOT DRIVING)
+      if (wantSprint) {
+        // RUNNING / JUMPING: 222.2 g/hr (3.527x faster than Driving, 2.222x faster than Walking!)
+        sys.tier = NASA_O2.TIERS.eva_sprint;
+        sys.sprintSec += dt;
+        sys.fastDrainWarn = 'w_o2_sprint';
+        if (sys.sprintSec >= 12.0) {
+          sys.catchBreathT = 4.0; // Friendly 4s breather instead of punishing damage
+          sys.sprintSec = 0;
+          sfx.beep(420, 0.12, 'triangle', 0.14);
+        }
+      } else {
+        sys.sprintSec = Math.max(0, sys.sprintSec - dt * 1.4);
+        if (S.action || Math.abs(f.speed) < 0.15) {
+          sys.tier = NASA_O2.TIERS.eva_stand; // 63.0 g/hr (Same slow use as driving)
+        } else if (slope > 0.22 && fwd > 0) {
+          // CLIMBING STEEP HILL: 160.0 g/hr (2.540x faster than Driving!)
+          sys.tier = NASA_O2.TIERS.eva_climb;
+          sys.fastDrainWarn = 'w_o2_climb';
+        } else if (Math.abs(f.speed) < 2.8) {
+          sys.tier = NASA_O2.TIERS.eva_slow;  // 70.4 g/hr (1.117x Driving)
+        } else {
+          // NORMAL WALKING: 100.0 g/hr (1.587x faster than Driving!)
+          sys.tier = NASA_O2.TIERS.eva_walk;
+        }
+      }
+    }
+
+    // 2. IN-BASE CREW BREATHING (35 g/hr per astronaut = 0.84 kg/day) & EXHALED CO2
+    const inBaseCrewGHr = (NASA_O2.CREW_COUNT - 1) * NASA_O2.CREW_O2_G_HR + (inLab ? sys.tier.gHr : 0);
+    const baseO2UsedKg = ((inBaseCrewGHr + NASA_O2.HULL_LEAK_G_HR) * baseHrs) / 1000;
+    sys.baseO2Kg = Math.max(0, sys.baseO2Kg - baseO2UsedKg);
+    const co2ExhaledKg = (inBaseCrewGHr * baseHrs / 1000) * (NASA_O2.CREW_CO2_KG_DAY / NASA_O2.CREW_O2_KG_DAY);
+    sys.co2StoredKg = clamp(sys.co2StoredKg + co2ExhaledKg, 0, 4.0);
+
+    // 3. SPACESUIT OXYGEN BANK DRAIN (OUTSIDE) OR FAST REFILL (IN BASE)
+    if (inLab || sheltered) {
+      // Breathing base air: the suit is not used here — but it is NOT refilled automatically.
+      // Only the spacesuit refill station in the airlock can put oxygen back into the suit.
+      sys.refillingSuit = false;
+      if (inLab) S.en = clamp(S.en + (sys.ogaMode === 'standby' ? 14 : 11) * dt, 0, 100);
+    } else {
+      sys.refillingSuit = false;
+      const radMult = stage >= 2 ? 1.15 : 1.0;
+      const usedGrams = sys.tier.gHr * radMult * evaHrs;
+      if (sys.suitGrams > 0) {
+        const fromMain = Math.min(sys.suitGrams, usedGrams);
+        sys.suitGrams -= fromMain;
+        const rem = usedGrams - fromMain;
+        if (rem > 0) { sys.usingSop = true; sys.sopGrams = Math.max(0, sys.sopGrams - rem); }
+      } else {
+        sys.usingSop = true;
+        sys.sopGrams = Math.max(0, sys.sopGrams - usedGrams);
+      }
+      // Energy & gentle health update outside
+      const expo = carMode ? 0.4 : 1;
+      S.en = clamp(S.en - (carMode ? 0.07 + 0.38 * Math.abs(S.car.v) / 34 : 0.08) * dt - (Math.abs(S.amb - 22) * 0.0005 * expo + (S.suit < 10 ? (10 - S.suit) * 0.04 : 0) + (S.suit > 38 ? (S.suit - 38) * 0.05 : 0)) * dt, 0, 100);
+      let loss = S.rad * 0.0018 + [0, 0.08, 0.28, 0.7][stage];
+      if (sys.suitGrams <= 0 && sys.sopGrams <= 0) loss += 1.8; // Only lose health when BOTH main bank & backup capsule are empty!
+      if (S.suit < 2) loss += (2 - S.suit) * 0.08; else if (S.suit > 46) loss += (S.suit - 46) * 0.12;
+      S.hp -= loss * dt; if (loss > 0.4) S.hurtT = 0.25;
+    }
+    S.o2 = clamp((sys.suitGrams / NASA_O2.SUIT_MAX_G) * 100, 0, 100);
+
+    // 4. POWER STATION: solar panels charge the battery, the base always uses some electricity
+    const P = BASE_CFG, MAXKG = NASA_O2.BASE_TANK_MAX_KG;
+    const solarKW = P.SOLAR_KW_PEAK * clamp(sunSin * 3, 0, 1);
+    sys.powerKWh = clamp(sys.powerKWh + (solarKW - P.BASE_LOAD_KW) * baseHrs, 0, P.BATTERY_KWH);
+    // 5. ELECTROLYSIS (2H₂O → 2H₂ + O₂): only while the astronaut has started it, and only with water + electricity + free storage
+    sys.prodStatus = 'stop';
+    const ogaRateGHr = NASA_O2.OGA_RATES_G_HR[sys.ogaMode] || 0;
+    if (ogaRateGHr > 0) {
+      const powerFactor = (S.flare.on || sunSin < -0.05) && sys.ogaMode === 'max' ? 0.7 : 1.0;
+      const want = ogaRateGHr * powerFactor * baseHrs;                                   // grams of oxygen this step
+      const gWater = sys.baseWaterL / (NASA_O2.H2O_L_PER_KG_O2 / 1000);                  // how much oxygen the water allows
+      const gPower = sys.powerKWh / (P.KWH_PER_KG_O2 / 1000);                            // ... the battery allows
+      const gRoom = (MAXKG - sys.baseO2Kg) * 1000;                                        // ... the oxygen tanks allow
+      const gH2 = (P.H2_MAX_KG - sys.h2Kg) * 1000 / P.H2_PER_O2;                          // ... the hydrogen tank allows
+      const made = Math.max(0, Math.min(want, gWater, gPower, gRoom, gH2));
+      sys.prodStatus = made >= want * 0.999 ? 'run' : gRoom <= want ? 'full' : gWater <= want ? 'nowater' : gPower <= want ? 'nopower' : 'h2full';
+      if (made > 1e-9) {                                                                   // every resource is used exactly once for what was made
+        const waterSplitL = made / 1000 * NASA_O2.H2O_L_PER_KG_O2;
+        sys.baseWaterL = Math.max(0, sys.baseWaterL - waterSplitL);
+        sys.powerKWh = Math.max(0, sys.powerKWh - made / 1000 * P.KWH_PER_KG_O2);
+        sys.baseO2Kg = Math.min(MAXKG, sys.baseO2Kg + made / 1000);                       // dried, compressed and stored
+        sys.h2Kg = Math.min(P.H2_MAX_KG, sys.h2Kg + made / 1000 * P.H2_PER_O2);           // hydrogen goes to its own tank
+        // 6. BREATH RECYCLER: breathed-out carbon dioxide + hydrogen -> water back into the tank (never more than was split)
+        const recCfg = NASA_O2.CO2_REC[sys.co2Mode] || NASA_O2.CO2_REC.off;
+        const h2Per = sys.co2Mode === 'bosch' ? P.BOSCH_H2_PER_WATER : P.SABATIER_H2_PER_WATER;
+        const saveL = Math.max(0, Math.min(waterSplitL * recCfg.frac, sys.h2Kg / h2Per, sys.co2StoredKg / P.CO2_PER_WATER));
+        if (saveL > 0) { sys.baseWaterL += saveL; sys.h2Kg -= saveL * h2Per; sys.co2StoredKg -= saveL * P.CO2_PER_WATER; }
+        sys.batchGrams += made;
+        while (sys.batchGrams >= NASA_O2.BLOCK_G) { sys.batchGrams -= NASA_O2.BLOCK_G; sys.batchesMade++; }
+      }
+    }
+  }
+  // ---------- base stations: oxygen production, spacesuit refill, rover garage, radiation shelter
+  const inRadShelter = () => S.mode === 'foot' && RAD_IN(S.foot.x, S.foot.z);
+  const nearProd = () => S.mode === 'foot' && (distTo(PROD_PANEL, S.foot.x, S.foot.z) < BASE_CFG.PROD_RADIUS || distTo(O2_LAB, S.foot.x, S.foot.z) < BASE_CFG.PROD_RADIUS);
+  const nearRefill = () => S.mode === 'foot' && distTo(AIRLOCK_SCU, S.foot.x, S.foot.z) < BASE_CFG.REFILL_RADIUS;
+  const inGarageBox = (x, z, m = 0) => x > GARAGE.x0 - m && x < GARAGE.x1 + m && z > GARAGE.z0 - m && z < GARAGE.z1 + m;
+  const nearGarage = () => S.mode === 'foot' && (inGarageBox(S.foot.x, S.foot.z) || distTo(GARAGE.ent, S.foot.x, S.foot.z) < BASE_CFG.GARAGE_RADIUS);
+  const roverAtGarage = () => inGarageBox(S.car.x, S.car.z, 1) || distTo(GARAGE.ent, S.car.x, S.car.z) < 12;
+  const nearShelterDoor = () => S.mode === 'foot' && !RAD_IN(S.foot.x, S.foot.z) && distTo(RAD_SHELTER.door, S.foot.x, S.foot.z) < BASE_CFG.SHELTER_RADIUS;
+  function panelMsg(text) { S.panelMsg = text; S.panelMsgT = 4; }
+  function startProduction() { const sys = S.o2Sys; if (sys.ogaMode === 'standby') sys.ogaMode = 'nominal'; sfx.beep(680, 0.09, 'sine', 0.12); flash(tr('f_oga_' + sys.ogaMode)); }
+  function stopProduction() { const sys = S.o2Sys; sys.ogaMode = 'standby'; sfx.beep(360, 0.09, 'sine', 0.12); flash(tr('f_oga_standby')); }
+  // REFILL SPACESUIT: one atomic transfer — only oxygen that is really stored in the base, removed from the base by exactly the same amount
+  function refillSuit() {
+    const sys = S.o2Sys;
+    const needG = (NASA_O2.SUIT_MAX_G - sys.suitGrams) + (NASA_O2.SOP_MAX_G - sys.sopGrams);
+    if (needG < 0.5) { panelMsg(tr('rf_full')); sfx.beep(300, 0.1, 'square', 0.1); return 0; }
+    const availG = Math.floor(sys.baseO2Kg * 1000);
+    if (availG < 1) { panelMsg(tr('rf_empty')); sfx.beep(220, 0.15, 'square', 0.12); return 0; }
+    const g = Math.min(needG, availG);
+    const toSuit = Math.min(NASA_O2.SUIT_MAX_G - sys.suitGrams, g);
+    sys.suitGrams += toSuit;
+    sys.sopGrams = Math.min(NASA_O2.SOP_MAX_G, sys.sopGrams + (g - toSuit));
+    sys.baseO2Kg = Math.max(0, sys.baseO2Kg - g / 1000);
+    sys.usingSop = false;
+    S.o2 = clamp(sys.suitGrams / NASA_O2.SUIT_MAX_G * 100, 0, 100);
+    S.tank = sys.baseO2Kg / NASA_O2.BASE_TANK_MAX_KG * 100;
+    panelMsg(tr('rf_done', { g: Math.round(g) })); sfx.chime(); tip('tip_refill');
+    return g;
+  }
+  // UNLOAD CRYSTALS: backpack + (rover cargo when the rover is parked at the garage) -> base storage, counted exactly once
+  function deliverCrystals(fromPack, fromCargo) {
+    const n = fromPack + fromCargo; if (n <= 0) return 0;
+    S.carried -= fromPack; S.cargo -= fromCargo; S.delivered += n;                       // the same crystals can never be counted twice
+    S.money += n * REWARD;
+    if (S.tankOn) { S.makerQ += n * ROCK_O2; tip('tip_maker'); }                         // level 1: stored crystals feed the oxygen maker
+    if (S.delivered >= GOAL && !S.tankOn && !S.mission && !S.storm.on) win();
+    return n;
+  }
+  function unloadCrystals() {
+    const pack = S.carried, cargo = roverAtGarage() ? S.cargo : 0;
+    if (pack + cargo <= 0) { panelMsg(tr('gr_none')); sfx.beep(260, 0.12, 'square', 0.1); return 0; }
+    const n = deliverCrystals(pack, cargo);
+    sfx.chime(); panelMsg(tr('gr_done', { n })); flash(tr('gr_done', { n }));
+    return n;
+  }
+  function enterShelter() { const f = S.foot; f.x = RAD_SHELTER.x1 - 1.6; f.z = RAD_SHELTER.door.z; f.yaw = -Math.PI / 2; f.speed = 0; S.cam.yaw = f.yaw; sfx.beep(300, 0.12, 'triangle', 0.12); }
+  function openPanel(type) { S.panel = type; S.panelMsg = ''; S.panelMsgT = 0; buildPanel(); }
+  function closePanel() { S.panel = null; panelEl.style.display = 'none'; panelEl.dataset.type = ''; }
+  // O / G / N: water-splitter mode, breath recycler, oxygen guide
+  const nearO2Lab = () => S.mode === 'foot' && distTo(O2_LAB, S.foot.x, S.foot.z) < 6.5;
+  function cycleOgaMode() {
+    const order = ['nominal', 'max', 'standby'];
+    const sys = S.o2Sys;
+    sys.ogaMode = order[(order.indexOf(sys.ogaMode) + 1) % order.length];
+    sfx.beep(sys.ogaMode === 'standby' ? 360 : 680, 0.09, 'sine', 0.12);
+    flash(tr('f_oga_' + sys.ogaMode));
+  }
+  function cycleCo2Mode() {
+    const sys = S.o2Sys;
+    if (sys.co2Mode === 'sabatier') {
+      if (!sys.boschUnlocked && nearO2Lab() && S.money >= 300) {
+        S.money -= 300; sys.boschUnlocked = true; sys.co2Mode = 'bosch';
+        sfx.chime(); flash(tr('f_bosch_buy')); return;
+      }
+      sys.co2Mode = sys.boschUnlocked ? 'bosch' : 'off';
+    } else if (sys.co2Mode === 'bosch') {
+      sys.co2Mode = 'off';
+    } else {
+      sys.co2Mode = 'sabatier';
+    }
+    sfx.beep(580, 0.09, 'triangle', 0.12);
+    flash(tr('f_co2_' + sys.co2Mode));
+  }
+  function toggleNasaModal() {
+    const open = ovNasa.style.display === 'flex';
+    if (open) { ovNasa.style.display = 'none'; if (ovPause.style.display !== 'flex' && ovHelp.style.display !== 'flex' && !mapOpen) S.paused = false; return; }
+    S.paused = true;
+    ovNasa.innerHTML =
+      '<div class="mg-card mg-glass mg-brief">' +
+        '<h2>' + tr('nasa_title') + '</h2>' +
+        '<div class="mg-sub">' + tr('nasa_sub') + '</div>' +
+        '<div class="mg-kid-grid">' +
+          '<div class="mg-kid-box"><h3>' + tr('nk_1t') + '</h3><p>' + tr('nk_1d') + '</p></div>' +
+          '<div class="mg-kid-box"><h3>' + tr('nk_2t') + '</h3><p>' + tr('nk_2d') + '</p></div>' +
+          '<div class="mg-kid-box"><h3>' + tr('nk_3t') + '</h3><p>' + tr('nk_3d') + '</p></div>' +
+          '<div class="mg-kid-box"><h3>' + tr('nk_4t') + '</h3><p>' + tr('nk_4d') + '</p></div>' +
+        '</div>' +
+        '<div class="mg-btns"><button class="mg-btn pri" id="closeNasa" type="button">' + tr('resume') + '</button></div>' +
+      '</div>';
+    ovNasa.style.display = 'flex';
+    ovNasa.querySelector('#closeNasa').onclick = () => toggleNasaModal();
+  }
+  eclssBox.querySelector('#btnO').onclick = () => { if (!S.paused && !S.over) cycleOgaMode(); };
+  eclssBox.querySelector('#btnG').onclick = () => { if (!S.paused && !S.over) cycleCo2Mode(); };
+  eclssBox.querySelector('#btnN').onclick = () => toggleNasaModal();
   // spoken one-time tips that teach how to manage oxygen (level 1)
   const tipsShown = {}; let tipQ = [], tipT = 0;
   function tip(k) { if (!S.tankOn || tipsShown[k]) return; tipsShown[k] = true; tipQ.push(k); }
@@ -1462,7 +2064,8 @@ function createGame(opts) {
   }
   // oxygen (%) needed to get back to the base: walk straight home, or walk to the rover and drive
   function homeNeed() {
-    const k = radStage() >= 2 ? 1.25 : 1, WALK = 4.6, DRIVE = 24, FO = 0.6 * k, CO = 0.35 * k;
+    const k = radStage() >= 2 ? 1.15 : 1, WALK = 4.6, DRIVE = 24, pct = gHr => gHr * NASA_O2.EVA_HR_PER_SEC / NASA_O2.SUIT_MAX_G * 100;
+    const FO = pct(NASA_O2.TIERS.eva_walk.gHr) * k, CO = pct(NASA_O2.TIERS.rover.gHr) * k;
     const c = S.car, dc = Math.max(0, Math.hypot(c.x, c.z) - LAB_RADIUS);
     S.homeViaRover = false;
     if (S.mode === 'car') return dc / DRIVE * CO;
@@ -1565,6 +2168,9 @@ function createGame(opts) {
     const f = S.foot, c = S.car;
     if (S.mode === 'car') return Math.abs(c.v) < 3 && !c.air ? { type: 'exit', text: tr('p_exit') } : null;
     if (f.air) return null;
+    if (nearRefill()) return { type: 'refill', text: tr('p_refill') };
+    if (nearProd()) return { type: 'prod', text: tr('p_prod') };
+    if (nearShelterDoor()) return { type: 'shelter', text: tr('p_shelter') };
     if (S.storm.on) for (let i = 0; i < 2; i++) if (S.storm.valves[i] < VALVE_TIME && Math.hypot(f.x - VALVES[i].x, f.z - VALVES[i].z) <= 1.9) return { type: 'valve', text: tr('p_valve', { n: i + 1, p: Math.round(S.storm.valves[i] / VALVE_TIME * 100) }) };
     if (S.mission) {
       if (S.mirrors.pack > 0) {
@@ -1576,13 +2182,17 @@ function createGame(opts) {
     const nr = nearestRock(f.x, f.z);
     if (nr && nr.d < 3.4 && S.carried < CAP_FOOT) return { type: 'collect', rock: nr.r, text: tr('p_collect') };
     const dRover = distTo(c, f.x, f.z);
+    if (nearGarage() && (S.carried > 0 || S.cargo > 0 || dRover >= 6)) return { type: 'garage', text: tr('p_garage') };   // garage: unload backpack + parked rover
     if (S.carried > 0 && dRover < 7 && S.cargo < CAP_CARGO) return { type: 'load', text: tr('p_load') };
     if ((S.carried > 0 || (S.cargo > 0 && roverAtBase())) && distTo(STORE, f.x, f.z) < 5.5) return { type: 'store', text: tr('p_store') };
     if (dRover < 6) return { type: 'enter', text: tr('p_enter') };
     return null;
   }
   function interact() {
+    if (S.panel) { closePanel(); return; }
     const c = context(); if (!c || c.type === 'valve') return;
+    if (c.type === 'refill' || c.type === 'prod' || c.type === 'garage') { openPanel(c.type); return; }
+    if (c.type === 'shelter') { enterShelter(); return; }
     if (c.type === 'enter') { tip('tip_rover'); S.mode = 'car'; S.cam.fpPitch = 0; S.cam.yawOff = 0; attachToSeat(true); sfx.beep(300, 0.1, 'square', 0.12); return; }
     if (c.type === 'exit') {
       S.mode = 'foot'; S.cam.fpPitch = 0; S.cam.yawOff = 0; attachToSeat(false);
@@ -1613,10 +2223,9 @@ function createGame(opts) {
     } else if (a.type === 'load') {
       const n = Math.min(S.carried, CAP_CARGO - S.cargo); S.carried -= n; S.cargo += n; sfx.pick();
     } else if (a.type === 'store') {
-      const n = S.carried + (roverAtBase() ? S.cargo : 0); S.delivered += n; S.carried = 0; if (roverAtBase()) S.cargo = 0; sfx.chime();
-      S.money += n * REWARD;
-      if (S.tankOn) { S.makerQ += n * ROCK_O2; flash(tr('f_oxy', { o: n * ROCK_O2, m: n * REWARD })); tip('tip_maker'); }
-      else { flash(tr('f_earn', { m: n * REWARD })); if (S.delivered >= GOAL) win(); }
+      const pack = S.carried, cargo = roverAtBase() ? S.cargo : 0, n = pack + cargo; sfx.chime();
+      deliverCrystals(pack, cargo);
+      flash(S.tankOn ? tr('f_oxy', { o: n * ROCK_O2, m: n * REWARD }) : tr('f_earn', { m: n * REWARD }));
     }
   }
 
@@ -1665,7 +2274,7 @@ function createGame(opts) {
         f.speed = lerp(f.speed, 0, 1 - Math.exp(-10 * dt));
       } else {
         f.yaw += turn * (f.air ? 1.3 : 2.4) * dt;
-        const run = keys.ShiftLeft || keys.ShiftRight;
+        const run = (keys.ShiftLeft || keys.ShiftRight) && !(S.o2Sys.catchBreathT > 0);   // catching breath: walk only
         const target = fwd > 0 ? (run ? 8.5 : 4.6) * stageSpeed : fwd < 0 ? -2.6 : 0;
         f.speed = lerp(f.speed, target, 1 - Math.exp(-(f.air ? 1.2 : 7) * dt));
         const nx = f.x + Math.sin(f.yaw) * f.speed * dt, nz = f.z + Math.cos(f.yaw) * f.speed * dt;
@@ -1770,32 +2379,28 @@ function createGame(opts) {
       if (fl.on) radRate *= 3.5;
       if (sunSin < 0 && !S.mission) radRate *= 0.5;
     }
+    if (inRadShelter()) radRate = 0;          // radiation shelter: no new exposure (already-absorbed radiation stays)
     S.rad = clamp(S.rad + radRate * dt - (inLab ? 6 * dt : 0), 0, 100);
-    const runK = !carMode && (keys.ShiftLeft || keys.ShiftRight) && fwd > 0 && !S.action ? 1.8 : 1;
-    S.o2Rate = inLab ? 0 : (carMode ? 0.35 : 0.6) * runK * (stage >= 2 ? 1.25 : 1);
-    S.refilling = false;
-    if (inLab) {
-      let d = Math.min(12 * dt, 100 - S.o2);
-      if (S.tankOn) d = Math.max(0, Math.min(d, S.tank / REFILL_COST));
-      if (d > 1e-5) { S.o2 += d; S.refilling = true; if (S.tankOn) S.tank = Math.max(0, S.tank - d * REFILL_COST); }
-      S.en = clamp(S.en + 10 * dt, 0, 100);
-      if (S.refilling && S.o2 < 92) tip('tip_refill');
-    } else {
-      if (S.t > 2) tip('tip_out');
-      if (runK > 1) tip('tip_run');
-      S.o2 = clamp(S.o2 - S.o2Rate * dt, 0, 100);
-      if (S.o2 < 50) tip('tip_half');
-      S.en = clamp(S.en - (carMode ? 0.08 + 0.45 * Math.abs(S.car.v) / 34 : 0.1) * dt - (Math.abs(S.amb - 22) * 0.0006 * expo + (S.suit < 10 ? (10 - S.suit) * 0.05 : 0) + (S.suit > 38 ? (S.suit - 38) * 0.06 : 0)) * dt, 0, 100);
-      let loss = S.rad * 0.002 + [0, 0.1, 0.35, 0.9][stage];
-      if (S.o2 <= 0) loss += 4;
-      if (S.suit < 2) loss += (2 - S.suit) * 0.1; else if (S.suit > 46) loss += (S.suit - 46) * 0.15;
-      S.hp -= loss * dt; if (loss > 0.4) S.hurtT = 0.25;
+    {
+      const fs = S.foot, sy = Math.sin(fs.yaw), cy = Math.cos(fs.yaw);
+      const slopeF = S.mode === 'foot' ? (heightAt(fs.x + sy * 2, fs.z + cy * 2) - heightAt(fs.x, fs.z)) / 2 : 0;
+      updateOxygenExchange(dt, inLab, carMode, fwd, slopeF, stage, inRadShelter());
+    }
+    {
+      const sys = S.o2Sys;
+      S.o2Rate = inLab ? 0 : sys.tier.gHr * (stage >= 2 ? 1.15 : 1) * NASA_O2.EVA_HR_PER_SEC / NASA_O2.SUIT_MAX_G * 100;   // % of the suit bank per second
+      S.refilling = sys.refillingSuit;
+      if (inLab) { if (inBuilding(S.foot.x, S.foot.z) && S.mode === 'foot') tip('tip_split'); }
+      else if (!inRadShelter()) { if (S.t > 2) tip('tip_out'); if (sys.tier.id === 'eva_sprint') tip('tip_run'); if (S.o2 < 50) tip('tip_half'); }
     }
     S.o2Line = inLab ? 0 : Math.min(100, homeNeed() * 1.3 + 3);
+    S.tank = S.o2Sys.baseO2Kg / NASA_O2.BASE_TANK_MAX_KG * 100;   // the base oxygen tank is the Big Oxygen Bank
     // ---- base oxygen tank: the oxygen maker turns rocks into air
     if (S.tankOn) {
-      if (S.makerQ > 0) { const d = Math.min(S.makerQ, MAKER_RATE * dt); S.makerQ -= d; S.tank = Math.min(100, S.tank + d); }
-      if (S.tank < 8) S.tank += 0.12 * dt;                      // emergency backup: very slow
+      const sys = S.o2Sys, MAXKG = NASA_O2.BASE_TANK_MAX_KG;
+      if (S.makerQ > 0) { const d = Math.min(S.makerQ, MAKER_RATE * dt); S.makerQ -= d; sys.baseO2Kg = Math.min(MAXKG, sys.baseO2Kg + d / 100 * MAXKG); }
+      if (sys.baseO2Kg < 0.08 * MAXKG) sys.baseO2Kg += 0.12 / 100 * MAXKG * dt;   // emergency backup: very slow
+      S.tank = sys.baseO2Kg / MAXKG * 100;
       if (S.tank >= 99.95 && !S.winAt) S.winAt = S.t + 1.6;
       S.respawnT -= dt;
       if (S.respawnT <= 0) {
@@ -1829,6 +2434,22 @@ function createGame(opts) {
     S.doorOpen = lerp(S.doorOpen, (dDoor < 8 || dCar < 8) ? 1 : 0, 1 - Math.exp(-4 * dt));
     lab.door.position.y = 1.4 + S.doorOpen * 1.95;
     lab.tankFill.scale.y = Math.max(0.02, S.tank / 100 * 2.28);
+    {   // facility gauges, electrolysis glow, shelter door, blinking antenna
+      const F = lab.fac, sys = S.o2Sys, gz = (m, v) => { m.scale.y = Math.max(0.02, clamp(v, 0, 1) * m.userData.h); };
+      gz(F.waterGauge, sys.baseWaterL / NASA_O2.BASE_WATER_MAX_L); gz(F.o2Gauge, sys.baseO2Kg / NASA_O2.BASE_TANK_MAX_KG);
+      gz(F.h2Gauge, sys.h2Kg / BASE_CFG.H2_MAX_KG); gz(F.battGauge, sys.powerKWh / BASE_CFG.BATTERY_KWH);
+      const run = sys.prodStatus === 'run', pulse = 0.5 + 0.5 * Math.sin(S.t * 6);
+      F.elecTubes.forEach((t, i) => t.material.color.setRGB(run ? 0.25 + 0.3 * Math.sin(S.t * 5 + i) ** 2 : 0.16, run ? 0.75 + 0.2 * pulse : 0.35, run ? 1 : 0.47));
+      F.panelGlow.material.color.set(run ? 0x6ee7a0 : sys.prodStatus === 'stop' ? 0x66e6ff : 0xffb54d);
+      F.commLight.visible = Math.sin(S.t * 3) > 0;
+      const dd = Math.hypot(S.foot.x - RAD_SHELTER.door.x, S.foot.z - RAD_SHELTER.door.z);
+      F.shDoor.position.z = lerp(F.shDoor.position.z, RAD_SHELTER.door.z + (dd < 5 && S.mode === 'foot' ? 1.9 : 0), 1 - Math.exp(-5 * dt));
+    }
+    if (S.panel) {   // the station screen closes when you walk away
+      const ok = S.panel === 'prod' ? nearProd() : S.panel === 'refill' ? nearRefill() : nearGarage();
+      if (!ok) closePanel();
+    }
+    S.panelMsgT = Math.max(0, S.panelMsgT - dt);
     lab.makerGlow.material.color.set(S.makerQ > 0 ? (Math.sin(S.t * 8) > 0 ? 0xff9a3c : 0xff6a1c) : 0x3a2a22);
     lab.holo.rotation.y = S.t * 0.6; lab.holo.position.y = 1.9 + Math.sin(S.t * 1.5) * 0.08;
 
@@ -1839,7 +2460,7 @@ function createGame(opts) {
     S.inLab = inLab;
 
     // going inside the base switches to first person; stepping out brings the old view back
-    const inside = S.mode === 'foot' && inBuilding(pos.x, pos.z);
+    const inside = S.mode === 'foot' && (inBuilding(pos.x, pos.z) || RAD_IN(pos.x, pos.z));
     if (!S.inBase && inside) { S.inBase = true; if (S.view === 'third') { setView('first'); S.autoFP = true; } }
     else if (S.inBase && !inside) { S.inBase = false; if (S.autoFP) { setView('third'); S.autoFP = false; } }
     updateMission(dt);
@@ -2000,7 +2621,7 @@ function createGame(opts) {
     }
     if (!S.inLab && S.o2Line > 0 && S.o2 < S.o2Line + 8) {
       if (S.mode === 'foot' && S.homeViaRover) return { text: tr('obj_home'), tx: c.x, tz: c.z, label: tr('tgt_rover') };
-      return { text: tr('obj_home'), tx: DOOR.x, tz: DOOR.z, label: tr('tgt_lab') };
+      return { text: tr('obj_home'), tx: AIRLOCK_SCU.x, tz: AIRLOCK_SCU.z, label: tr('tgt_refill') };
     }
     const nr = nearestRock(f.x, f.z);
     if (nr && nr.d < 120 && S.carried < CAP_FOOT) return { text: tr('obj_collect'), tx: nr.r.x, tz: nr.r.z, label: tr('tgt_rock') };
@@ -2043,6 +2664,8 @@ function createGame(opts) {
       mctx.fillStyle = si.left > 0 ? 'rgba(255,200,90,.28)' : 'rgba(150,160,175,.18)'; mctx.fill();
       mctx.strokeStyle = si.left > 0 ? '#FFC65A' : '#7D8794'; mctx.lineWidth = 2; mctx.stroke();
     });
+    // base facilities
+    [[-38, 0, '#66e6ff'], [34.5, 28, '#ffb54d'], [-25.5, 32, '#ffd400'], [30, -27, '#8dff9a'], [0, -42, '#ffd877']].forEach(([x, z, c]) => { mctx.fillStyle = c; mctx.fillRect(mx(x) - 3, mz(z) - 3, 6, 6); });
     // lab
     mctx.fillStyle = '#B7CECE'; mctx.fillRect(mx(0) - 7, mz(0) - 7, 14, 14);
     mctx.strokeStyle = 'rgba(183,206,206,.5)'; mctx.beginPath(); mctx.arc(mx(0), mz(0), LAB_RADIUS * k + 3, 0, 7); mctx.stroke();
@@ -2073,14 +2696,51 @@ function createGame(opts) {
       dset(b.v, 'text', txt);
       b.row.classList.toggle('low', k === 'radiation' ? v >= 55 : k === 'oxygen' ? (v < 22 || (S.o2Line > 0 && v < S.o2Line + 5)) : v < 22);
     });
+    // 1. Update 8 Vertical Oxygen Bank Capsules + 9th Red Backup Capsule (No confusing math graphs!)
+    const sys = S.o2Sys, tInfo = sys.tier;
+    const capsLeft = sys.suitGrams / NASA_O2.BLOCK_G;
+    for (let i = 0; i < 8; i++) {
+      const pct = clamp((capsLeft - i) * 100, 0, 100);
+      dset(o2Caps[i], 'height', Math.round(pct) + '%');
+    }
+    dset(o2Caps[8], 'height', Math.round((sys.sopGrams / NASA_O2.SOP_MAX_G) * 100) + '%');
+    {
+      let t = Math.ceil(capsLeft - 1e-6) + ' / 8' + (sys.usingSop ? ' + 🚨' : '');
+      if (S.refilling) t += ' · ▲';
+      else if (S.o2Rate > 0 && sys.suitGrams > 0) { const sec = Math.floor(S.o2 / S.o2Rate); t += ' · ' + Math.floor(sec / 60) + ':' + pad2(sec % 60); }
+      dset(bar.oxygen.v, 'text', t);
+    }
+
+    // Highlight Oxygen Bank frame & badge when moving faster or saving air
+    const tag = S.inLab ? 'save' : tInfo.speedTag;
+    o2Bank.className = 'mg-o2bank' + (tag === 'fast' ? ' fast' : tag === 'super' ? ' super' : '');
+    o2Badge.className = 'mg-o2badge ' + tag;
+    dset(o2Badge, 'text', S.inLab ? tr('b_o2_base') : tr('b_o2_' + tInfo.id));
+
+    // 2. Update Visual 3-Part Base Oxygen Pipeline Card (.mg-eclss)
+    dset(eclssBox.querySelector('.et'), 'text', tr('eclss_title'));
+    dset(eclssBox.querySelector('.ep'), 'text', Math.round(sys.baseO2Kg * 10) + ' ' + tr('caps'));
+    dset(eclssBox.querySelector('.p1L'), 'text', tr('p1_water'));
+    dset(eclssBox.querySelector('.p1V'), 'text', sys.baseWaterL.toFixed(1) + ' L');
+    dset(eclssBox.querySelector('.p2L'), 'text', tr('p2_maker'));
+    dset(eclssBox.querySelector('.p2V'), 'text', tr('oga_' + sys.ogaMode));
+    dset(eclssBox.querySelector('.p3L'), 'text', tr('p3_bank'));
+    dset(eclssBox.querySelector('.p3V'), 'text', sys.baseO2Kg.toFixed(1) + ' kg');
+    dset(eclssBox.querySelector('.ogB'), 'width', Math.round(sys.batchGrams) + '%');
+    dset(eclssBox.querySelector('.pwL'), 'text', '⚡ ' + tr('pw_lbl') + ' · ' + tr('h2_lbl'));
+    dset(eclssBox.querySelector('.pwV'), 'text', Math.round(sys.powerKWh / BASE_CFG.BATTERY_KWH * 100) + '% · ' + sys.h2Kg.toFixed(2) + ' kg');
+    dset(eclssBox.querySelector('.coL'), 'text', tr('p4_rec'));
+    dset(eclssBox.querySelector('.coV'), 'text', tr('co2_' + sys.co2Mode));
+    dset(eclssBox.querySelector('#btnO'), 'text', tr('btn_o')); dset(eclssBox.querySelector('#btnG'), 'text', tr('btn_g')); dset(eclssBox.querySelector('#btnN'), 'text', tr('btn_n'));
     {
       const ox = bar.oxygen, on = S.o2Line > 0.5 && !S.inLab;
       dset(ox.mk, 'display', on ? 'block' : 'none'); dset(ox.home, 'display', on ? 'block' : 'none');
       if (on) {
         dset(ox.mk, 'left', S.o2Line.toFixed(1) + '%'); dset(ox.mk, 'background', S.o2 < S.o2Line ? '#FF6F6F' : '#ffffff');
-        dset(ox.home, 'text', tr('o2home', { n: Math.ceil(S.o2Line) })); dset(ox.home, 'color', S.o2 < S.o2Line + 10 ? '#FF9D8A' : '#BBBAC6');
+        dset(ox.home, 'text', tr('o2home', { n: Math.max(1, Math.ceil(S.o2Line / 12.5)) })); dset(ox.home, 'color', S.o2 < S.o2Line + 10 ? '#FF9D8A' : '#BBBAC6');
       }
       dset(inv, 'top', (stats.offsetTop + stats.offsetHeight + 12) + 'px');
+      dset(eclssBox, 'top', (env.offsetTop + env.offsetHeight + 12) + 'px');   // right column, under the clock / temperature panel
     }
     if (S.storm.on) {
       const pct = i => Math.round(S.storm.valves[i] / VALVE_TIME * 100);
@@ -2126,21 +2786,24 @@ function createGame(opts) {
     const fl = S.flare;
     if (fl.on) { w = tr('w_flare'); red = true; }
     else if (performance.now() < S.hitUntil) { w = tr('w_hit', { d: S.lastDmg }); red = true; }
-    else if (!S.inLab && S.o2Line > 0 && S.o2 < S.o2Line && S.o2 > 0) { w = tr('w_turn', { a: Math.round(S.o2), b: Math.ceil(S.o2Line) }); red = true; }
+    else if (!S.inLab && S.o2Line > 0 && S.o2 < S.o2Line && S.o2 > 0) { w = tr('w_turn', { a: Math.ceil(capsLeft - 1e-6), b: Math.max(1, Math.ceil(S.o2Line / 12.5)) }); red = true; }
+    else if (sys.usingSop && !S.inLab) { w = tr('w_sop'); red = true; }
+    else if (sys.catchBreathT > 0 && !S.inLab) { w = tr('w_breather'); red = false; }
     else if (S.tankOn && S.tank < 1 && (S.inLab || S.o2 < 70)) { w = tr('w_tank0'); red = true; }
     else if (fl.warn) w = tr('w_flareSoon', { s: Math.max(1, Math.ceil(fl.next)) });
     else if (S.suit < 2 && !S.inLab) { w = tr('w_cold'); red = true; }
     else if (S.suit > 44 && !S.inLab) { w = tr('w_hot'); red = true; }
-    else if (S.o2 < 20 && !S.inLab) { w = tr('w_o2'); red = true; }
+    else if (S.o2 < 25 && !S.inLab) { w = tr('w_o2'); red = true; }
     else if (S.en <= 0 && S.mode === 'car') { w = tr('w_en'); red = true; }
     else if (S.rad >= 55 && !S.inLab) { w = tr('w_rad'); red = true; }
     else if (S.rv < 25 && S.mode === 'car' && !carInLabNow()) { w = tr(S.rv <= 0 ? 'w_rv0' : 'w_rv1'); red = true; }
     else if (!S.inLab && S.o2Line > 0 && S.o2 < S.o2Line + 10) w = tr('w_soon');
+    else if (sys.fastDrainWarn && !S.inLab) { w = tr(sys.fastDrainWarn); red = sys.tier.id === 'eva_sprint'; }
     else if (S.tankOn && S.tank < 12) w = tr('w_tankLow');
     else if (S.mission && !S.sunlit && S.mirrors.placed < 2 && !S.inLab && S.mode === 'foot') w = tr('w_dark');
     else if (Math.max(Math.abs(s.x), Math.abs(s.z)) > WORLD - 250) { w = tr('w_edge'); }
     dset(warn, 'display', w ? 'block' : 'none'); dset(warn, 'text', w); warn.classList.toggle('red', red);
-    const refilling = S.inLab && S.refilling && !w;
+    const refilling = false;   // no automatic refilling any more
     dset(msg, 'display', refilling ? 'block' : 'none'); dset(msg, 'text', tr('m_refill'));
     // paid services prompt
     const lines = [];
@@ -2157,6 +2820,12 @@ function createGame(opts) {
         dset(stormB, 'text', '☢ ' + (st.phase === 'warn' ? tr('st_warnT') + ' — ' + tr('storm_in') + ' 0:' + pad2(sec) : tr('st_hitT')));
         dset(stormS, 'text', safe ? tr('st_safe') : tr('st_msg'));
       }
+    }
+    updatePanel();
+    {
+      const shel = inRadShelter() && !S.over;
+      dset(radOk, 'display', shel ? 'block' : 'none');
+      if (shel) { dset(radOk.querySelector('b'), 'text', '☢ ' + tr('rad_ok')); dset(radOk.querySelector('span'), 'text', tr('rad_sub')); }
     }
     dset(viewTag, 'opacity', performance.now() < S.viewUntil ? '1' : '0');
     dset(vig, 'opacity', fl.on ? String(Math.round((0.55 + 0.25 * Math.sin(S.t * 6)) * 20) / 20) : '0');
