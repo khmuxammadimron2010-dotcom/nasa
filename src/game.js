@@ -943,6 +943,8 @@ function createGame(opts) {
   if (synth) { loadVoices(); try { synth.addEventListener('voiceschanged', loadVoices); } catch (e) { /* ignore */ } }
   const VOICE_PREF = { en: ['en'], uz: ['uz', 'tr', 'ru'], ru: ['ru'] }, VOICE_TAG = { en: 'en-US', uz: 'uz-UZ', ru: 'ru-RU' };
   function pickVoice() {
+    // English narration: the Mac/iPhone voice "Samantha" (the classic Siri-style US voice), when the device has it
+    if (lang === 'en') { const sam = voices.find(x => /samantha/i.test(x.name || '') && (x.lang || '').toLowerCase().startsWith('en')); if (sam) return sam; }
     for (const p of VOICE_PREF[lang]) { const v = voices.find(x => (x.lang || '').toLowerCase().replace('_', '-').startsWith(p)); if (v) return v; }
     return null;
   }
@@ -960,7 +962,7 @@ function createGame(opts) {
       if (i >= lines.length) { speaking = false; setReadBtn(); if (onLine) onLine(-1); return; }
       const u = new SpeechSynthesisUtterance(String(lines[i]).replace(/<[^>]+>/g, ''));
       const v = pickVoice(); if (v) { u.voice = v; u.lang = v.lang; } else u.lang = VOICE_TAG[lang];
-      u.rate = 0.92; u.pitch = 1.05; u.volume = clamp(voiceVol * 1.3, 0, 1);
+      u.rate = 0.92; u.pitch = v && /samantha/i.test(v.name || '') ? 1 : 1.05; u.volume = clamp(voiceVol * 1.3, 0, 1);
       u.onstart = () => { if (tok === spkTok && onLine) onLine(i); };
       u.onend = () => say(i + 1);
       u.onerror = () => { if (tok === spkTok) say(i + 1); };
