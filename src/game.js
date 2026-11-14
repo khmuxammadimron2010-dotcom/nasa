@@ -79,6 +79,14 @@ const DAY_LEN = 480;           // seconds of play for one full lunar day
 const CLOCK_START = 0.30;      // game starts in the morning
 const SUN_MAX = 62 * Math.PI / 180;
 const T_NIGHT = -173, T_DAY = 121;   // surface temperature extremes (°C)
+// ---- real Moon map (NASA LRO mosaic, equirectangular, centred on 0° longitude)
+const MAP_SITES = [
+  { key: 'site1', lat: 20.19, lon: 30.77, level: 1 },        // Taurus–Littrow, Apollo 17
+  { key: 'site2', lat: -89.67, lon: 129.78, level: 2, lb: 'up' },      // Shackleton crater
+  { apollo: 11, y: 1969, lat: 0.67, lon: 23.47 }, { apollo: 12, y: 1969, lat: -3.01, lon: -23.42, lb: 'left' },
+  { apollo: 14, y: 1971, lat: -3.65, lon: -17.47 }, { apollo: 15, y: 1971, lat: 26.13, lon: 3.63 },
+  { apollo: 16, y: 1972, lat: -8.97, lon: 15.5 }
+];
 // ---- mission "The Deadly Shadow"
 const SHADOW = { on: false, x: -250, z: 215, R: 88, D: 42 };
 const SH_E = 11 * Math.PI / 180;               // low sun: the crater floor stays in shadow
@@ -121,7 +129,7 @@ const T = {
     helpTitle: 'MOON MISSION',
     help: ['W / S — walk or drive forward / back', 'A / D — turn left / right',
       'Space — jump · Shift — run · B — brake', 'E — interact (rover, rocks, lab)',
-      'C — switch 3rd / 1st person view', 'Inside the base: E — oxygen maker · H — medical bay · R — workshop (costs money)', 'Drag the mouse — look around · Wheel — zoom', 'Esc — pause'],
+      'C — switch 3rd / 1st person view', 'Inside the base: E — oxygen maker · H — medical bay · R — workshop (costs money)', 'Drag the mouse — look around · Wheel — zoom', 'M — Moon map (where you are on the real Moon)', 'Esc — pause'],
     helpGoal: 'Drive to the glowing craters, collect rock samples, load them into the rover and store 12 samples in the lab. The sun’s radiation hurts you outside, and oxygen and energy run down — return to the lab to recover. Stones damage the rover. Go through the airlock into the base: store samples at the storage rack (E), earn money, and spend it at the medical bay (H) and the workshop (R).',
     begin: 'BEGIN MISSION', loading: 'Generating the Moon…',
     paused: 'PAUSED', resume: 'RESUME', quit: 'BACK TO LEVELS',
@@ -132,6 +140,7 @@ const T = {
     kidMoon: ['Welcome, young astronaut! Our Moon base is running out of air to breathe.', 'There is no air on the Moon. Your space suit carries a small tank of oxygen, and the base has one big oxygen tank.', 'Here is the secret: Moon rocks are almost half oxygen! It is locked inside the stone, and the oxygen maker in the base can pull it out.', 'Your job: collect the glowing rocks, bring them back, and put them into the oxygen maker. Fill the base tank to 100 percent.', 'Watch the Oxygen bar. The timer shows how long your air will last, and the white line shows how much air you need to get home. Always turn back before your oxygen reaches the line!', 'Running makes you breathe faster and uses more oxygen. The rover is fast, so driving uses less air on every trip.', 'At the base, the lab refills your suit from the big tank. Every refill uses base oxygen, so do not waste it.', 'Walk with W, A, S and D, jump with Space, and press E to pick up rocks and to get into the rover.', 'Ready? Press the Begin button. Good luck!'],
     kidShadow: ['Welcome, young astronaut! A radio tower is broken inside a deep, dark crater.', 'In the sunshine, your space suit gets very hot. But in the crater\'s shadow it is minus 173 degrees! Your energy and health freeze fast.', 'Here is a secret. On Earth, the air works like a blanket and keeps the heat. The Moon has no air, so the sun is boiling and the shade is freezing.', 'Your plan: drive the rover to the crater. Walk to each glowing spot on the sunny edge and press E to put up a giant mirror. You have three mirrors.', 'The mirrors bounce sunlight into the dark crater and make a warm, bright spot around the tower.', 'Now climb down, stand in the warm light, and press E at the tower to start repairing it. If you walk away, the repair pauses, so you can warm up and come back.', 'Walk with W, A, S and D, jump with Space, and press E to use things. Press C to change the camera.', 'Ready? Press the Begin button. Good luck!'],
     tank: 'Base O₂ tank', o2home: 'Way home needs ~{n}%', obj_fill: 'Base oxygen tank: {n}%', maker: 'Oxygen maker', heating: '{n} rocks heating', idle: 'ready', rocks: 'Rocks delivered', obj_home: 'Go back and refill your oxygen', w_turn: 'TURN BACK NOW! You have {a}% oxygen — the way home needs about {b}%.', w_soon: 'Head home soon — your oxygen is close to the white line.', w_tank0: 'The base tank is EMPTY — the lab cannot refill your suit! The backup makes air very slowly. Bring rocks!', w_tankLow: 'The base tank is almost empty — bring rocks soon!', f_oxy: '+{o}% base oxygen · +${m}', f_newRocks: 'New glowing rocks were found at the craters!', tip_out: 'You are outside now. Your suit uses oxygen — watch the timer next to Oxygen.', tip_run: 'Running makes you breathe faster: oxygen goes down almost twice as fast.', tip_rover: 'The rover is fast, so every trip uses less oxygen. Drive to save air!', tip_half: 'Half your oxygen is gone. Keep the Oxygen bar above the white line — that is what you need to get home.', tip_rock: 'This dark lava rock is almost half oxygen, locked inside its minerals!', tip_maker: 'The oxygen maker heats the rocks and pulls the oxygen out. Watch the base tank fill up!', tip_refill: 'The lab is refilling your suit from the base tank. Every refill uses base oxygen.', winT1: 'The base can breathe again!', winD1: 'You made enough oxygen from Moon rocks to fill the base tank ({n} rocks, time {t}). Moon rocks are about 40–45% oxygen by weight — it is locked inside minerals like ilmenite that formed in ancient lava. Future astronauts plan to make air to breathe and rocket fuel this way.',
+    map_title: 'MOON MAP', map_sub: 'Real photo map of the whole Moon from NASA’s Lunar Reconnaissance Orbiter', map_btn: 'MAP', map_close: 'CLOSE', map_credit: 'Map: NASA / GSFC / Arizona State University (LRO camera mosaic) · Press M or Esc to close', map_here: 'YOU ARE HERE', map_lvl: 'Level {n}', map_near: 'Near side (faces Earth)', map_far: 'Far side', map_hint: 'Tap a marker to learn about the place.', site1_name: 'Taurus–Littrow valley (Apollo 17)', site1_info: 'Ancient lava flooded this valley. In 1972 the Apollo 17 astronauts found orange glass beads here, made by volcanic “fire fountains”. The dark lava rock is rich in ilmenite — a mineral that oxygen can be pulled out of. That is why our oxygen base is here.', site2_name: 'Shackleton crater, south pole', site2_info: 'About 21 km wide and more than 4 km deep. At the pole the Sun always stays very low, so the crater floor has been in shadow for billions of years and is one of the coldest places we know — far below −173 °C.', apollo_info: 'Apollo {n} landed here in {y}.', help_map: 'M — Moon map (where you are on the real Moon)',
     clock: 'Lunar time', t_out: 'Outside', t_suit: 'Suit', ph_day: 'Day', ph_night: 'Night', ph_dawn: 'Sunrise', ph_dusk: 'Sunset',
     w_cold: 'SUIT FREEZING — get into sunlight or the mirror beam!', w_hot: 'SUIT OVERHEATING — get into shade or the rover!',
     w_dark: 'Crater shadow: no air to hold heat — it is −173 °C! Place mirrors on the rim.',
@@ -172,7 +181,7 @@ const T = {
     helpTitle: 'OY MISSIYASI',
     help: ['W / S — oldinga / orqaga yurish yoki haydash', 'A / D — chapga / o‘ngga burilish',
       'Space — sakrash · Shift — yugurish · B — tormoz', 'E — o‘zaro ta’sir (rover, toshlar, laboratoriya)',
-      'C — ko‘rinish: 3-shaxs / 1-shaxs', 'Bazada: E — kislorod mashinasi · H — tibbiyot · R — ustaxona (pul kerak)', 'Sichqonchani sudrang — atrofga qarash · G‘ildirak — yaqinlashtirish', 'Esc — pauza'],
+      'C — ko‘rinish: 3-shaxs / 1-shaxs', 'Bazada: E — kislorod mashinasi · H — tibbiyot · R — ustaxona (pul kerak)', 'Sichqonchani sudrang — atrofga qarash · G‘ildirak — yaqinlashtirish', 'M — Oy xaritasi (haqiqiy Oyda qayerdasiz)', 'Esc — pauza'],
     helpGoal: 'Yonib turgan kraterlarga boring, tosh namunalarini yig‘ing, roverga yuklang va laboratoriyaga 12 ta namuna yetkazing. Tashqarida quyosh radiatsiyasi zarar qiladi, kislorod va energiya kamayadi — tiklanish uchun laboratoriyaga qayting. Toshlar roverga zarar yetkazadi. Shlyuz orqali bazaga kiring: namunalarni omborga (E) qo‘ying, pul ishlang va uni tibbiyot xonasi (H) hamda ustaxona (R) uchun sarflang.',
     begin: 'MISSIYANI BOSHLASH', loading: 'Oy yaratilmoqda…',
     paused: 'PAUZA', resume: 'DAVOM ETISH', quit: 'BOSQICHLARGA QAYTISH',
@@ -183,6 +192,7 @@ const T = {
     kidMoon: ['Xush kelibsiz, yosh kosmonavt! Oydagi bazamizda nafas olish uchun havo tugab bormoqda.', 'Oyda havo yo‘q. Kostyumingizda kichik kislorod idishi bor, bazada esa bitta katta kislorod baki bor.', 'Mana sir: Oy toshlarining deyarli yarmi kislorod! U tosh ichiga qamalgan, bazadagi kislorod mashinasi esa uni ajratib oladi.', 'Vazifangiz: yonib turgan toshlarni yig‘ing, olib keling va kislorod mashinasiga soling. Baza bakini 100 foizgacha to‘ldiring.', 'Kislorod ko‘rsatkichini kuzating. Taymer havo qancha vaqtga yetishini, oq chiziq esa uyga qaytish uchun qancha havo kerakligini ko‘rsatadi. Kislorod chiziqqa yetmasdan har doim orqaga qayting!', 'Yugurganda tezroq nafas olasiz va ko‘proq kislorod sarflaysiz. Rover tez yuradi, shuning uchun har bir safarda kamroq havo ketadi.', 'Bazada laboratoriya kostyumingizni katta bakdan to‘ldiradi. Har bir to‘ldirish baza kislorodini sarflaydi, shuning uchun uni isrof qilmang.', 'W, A, S, D bilan yuring, Probel bilan sakrang, tosh olish va roverga o‘tirish uchun E ni bosing.', 'Tayyormisiz? Boshlash tugmasini bosing. Omad!'],
     kidShadow: ['Xush kelibsiz, yosh kosmonavt! Chuqur va qorong‘i krater ichida aloqa minorasi sindi.', 'Quyosh nurida kostyumingiz juda qiziydi. Krater soyasida esa minus 173 daraja! Energiya va salomatlik tez muzlaydi.', 'Mana bir sir. Yerda havo ko‘rpa kabi issiqlikni ushlab turadi. Oyda havo yo‘q, shuning uchun quyoshda qaynaydi, soyada muzlaydi.', 'Rejangiz: roverda kraterga boring. Quyoshli qirg‘oqdagi har bir yonib turgan joyga borib, E ni bosing va ulkan oyna o‘rnating. Sizda uchta oyna bor.', 'Oynalar quyosh nurini qorong‘i kraterga qaytaradi va minora atrofida iliq, yorug‘ joy hosil qiladi.', 'Endi pastga tushing, iliq nurda turing va minora yonida E ni bosib, ta’mirlashni boshlang. Uzoqlashsangiz, ta’mir to‘xtab turadi, isinib qaytishingiz mumkin.', 'W, A, S, D bilan yuring, Probel bilan sakrang, E bilan harakat qiling. C tugmasi kamerani almashtiradi.', 'Tayyormisiz? Boshlash tugmasini bosing. Omad!'],
     tank: 'Baza O₂ baki', o2home: 'Uyga qaytishga ~{n}% kerak', obj_fill: 'Baza kislorod baki: {n}%', maker: 'Kislorod mashinasi', heating: '{n} ta tosh qizimoqda', idle: 'tayyor', rocks: 'Topshirilgan toshlar', obj_home: 'Qaytib, kislorodni to‘ldiring', w_turn: 'HOZIROQ ORQAGA QAYTING! Sizda {a}% kislorod bor — uyga yo‘l taxminan {b}% oladi.', w_soon: 'Tez orada uyga qayting — kislorod oq chiziqqa yaqinlashmoqda.', w_tank0: 'Baza baki BO‘SH — laboratoriya kostyumni to‘ldira olmaydi! Zaxira tizim havoni juda sekin qiladi. Tosh olib keling!', w_tankLow: 'Baza baki deyarli bo‘sh — tezroq tosh olib keling!', f_oxy: '+{o}% baza kislorodi · +${m}', f_newRocks: 'Kraterlarda yangi yonib turgan toshlar topildi!', tip_out: 'Endi siz tashqaridasiz. Kostyum kislorod sarflaydi — Kislorod yonidagi taymerni kuzating.', tip_run: 'Yugurganda tez nafas olasiz: kislorod deyarli ikki baravar tez kamayadi.', tip_rover: 'Rover tez yuradi, shuning uchun har bir safarda kamroq kislorod ketadi. Havoni tejash uchun roverda yuring!', tip_half: 'Kislorodning yarmi tugadi. Kislorod chizig‘ini oq chiziqdan yuqorida saqlang — uyga qaytish uchun shuncha kerak.', tip_rock: 'Bu qora lava toshining deyarli yarmi kislorod — u minerallar ichiga qamalgan!', tip_maker: 'Kislorod mashinasi toshlarni qizdirib, ichidan kislorodni ajratib oladi. Baza baki to‘lishini kuzating!', tip_refill: 'Laboratoriya kostyumingizni baza bakidan to‘ldirmoqda. Har bir to‘ldirish baza kislorodini sarflaydi.', winT1: 'Baza yana nafas olmoqda!', winD1: 'Siz Oy toshlaridan baza bakini to‘ldirishga yetarli kislorod oldingiz ({n} ta tosh, vaqt {t}). Oy toshlari og‘irligining taxminan 40–45 foizi kislorod — u qadimgi lavada hosil bo‘lgan ilmenit kabi minerallar ichiga qamalgan. Kelajakda kosmonavtlar shu yo‘l bilan nafas olish uchun havo va raketa yoqilg‘isi olishni rejalashtirmoqda.',
+    map_title: 'OY XARITASI', map_sub: 'NASA Lunar Reconnaissance Orbiter olgan butun Oyning haqiqiy foto xaritasi', map_btn: 'XARITA', map_close: 'YOPISH', map_credit: 'Xarita: NASA / GSFC / Arizona shtat universiteti (LRO kamera mozaikasi) · Yopish uchun M yoki Esc', map_here: 'SIZ SHU YERDASIZ', map_lvl: '{n}-bosqich', map_near: 'Yaqin tomon (Yerga qaragan)', map_far: 'Uzoq tomon', map_hint: 'Joy haqida bilish uchun belgini bosing.', site1_name: 'Taurus–Littrou vodiysi (Apollon 17)', site1_info: 'Bu vodiyni qadimgi lava to‘ldirgan. 1972-yilda Apollon 17 kosmonavtlari bu yerda vulqon “olov favvoralari” hosil qilgan to‘q sariq shisha donachalarni topdilar. Qora lava toshida ilmenit ko‘p — undan kislorod ajratib olish mumkin. Shuning uchun kislorod bazamiz shu yerda.', site2_name: 'Shekklton krateri, janubiy qutb', site2_info: 'Kengligi taxminan 21 km, chuqurligi 4 km dan ortiq. Qutbda Quyosh doim juda past turadi, shuning uchun krater tubi milliardlab yillardan beri soyada va bizga ma’lum eng sovuq joylardan biri — −173 °C dan ham ancha sovuq.', apollo_info: 'Apollon {n} bu yerga {y}-yilda qo‘ndi.', help_map: 'M — Oy xaritasi (haqiqiy Oyda qayerdasiz)',
     clock: 'Oy vaqti', t_out: 'Tashqarida', t_suit: 'Kostyum', ph_day: 'Kunduz', ph_night: 'Tun', ph_dawn: 'Tong', ph_dusk: 'Shom',
     w_cold: 'KOSTYUM MUZLAYAPTI — quyosh nuriga yoki oyna nuriga chiqing!', w_hot: 'KOSTYUM O‘TA QIZIYAPTI — soyaga yoki roverga o‘ting!',
     w_dark: 'Krater soyasi: issiqlikni ushlab turadigan havo yo‘q — −173 °C! Qirg‘oqqa oynalar qo‘ying.',
@@ -223,7 +233,7 @@ const T = {
     helpTitle: 'ЛУННАЯ МИССИЯ',
     help: ['W / S — идти или ехать вперёд / назад', 'A / D — поворот влево / вправо',
       'Пробел — прыжок · Shift — бег · B — тормоз', 'E — действие (ровер, камни, лаборатория)',
-      'C — вид от 3-го / 1-го лица', 'В базе: E — кислородная машина · H — медотсек · R — мастерская (за деньги)', 'Перетаскивайте мышь — осмотр · Колесо — масштаб', 'Esc — пауза'],
+      'C — вид от 3-го / 1-го лица', 'В базе: E — кислородная машина · H — медотсек · R — мастерская (за деньги)', 'Перетаскивайте мышь — осмотр · Колесо — масштаб', 'M — карта Луны (где ты на настоящей Луне)', 'Esc — пауза'],
     helpGoal: 'Езжайте к светящимся кратерам, собирайте образцы породы, грузите их в ровер и сдайте 12 образцов в лабораторию. Снаружи солнечная радиация вредит здоровью, а кислород и энергия убывают — для восстановления возвращайтесь в лабораторию. Камни повреждают ровер. Пройдите через шлюз в базу: сдавайте образцы на склад (E), зарабатывайте деньги и тратьте их в медотсеке (H) и мастерской (R).',
     begin: 'НАЧАТЬ МИССИЮ', loading: 'Создаём Луну…',
     paused: 'ПАУЗА', resume: 'ПРОДОЛЖИТЬ', quit: 'К УРОВНЯМ',
@@ -234,6 +244,7 @@ const T = {
     kidMoon: ['Добро пожаловать, юный астронавт! На нашей лунной базе заканчивается воздух для дыхания.', 'На Луне нет воздуха. В твоём скафандре маленький баллон с кислородом, а на базе — один большой кислородный бак.', 'Вот секрет: лунные камни почти наполовину состоят из кислорода! Он заперт внутри камня, и кислородная машина на базе умеет его извлекать.', 'Твоя задача: собери светящиеся камни, привези их на базу и загрузи в кислородную машину. Наполни бак базы до 100 процентов.', 'Следи за шкалой кислорода. Таймер показывает, на сколько хватит воздуха, а белая черта — сколько воздуха нужно, чтобы вернуться домой. Всегда поворачивай назад, пока кислород не дошёл до черты!', 'Когда бежишь, дышишь чаще и тратишь больше кислорода. Ровер быстрый, поэтому на нём каждая поездка тратит меньше воздуха.', 'На базе лаборатория заправляет скафандр из большого бака. Каждая заправка тратит кислород базы, поэтому не трать его зря.', 'Ходи клавишами W, A, S и D, прыгай пробелом и нажимай E, чтобы поднять камень и сесть в ровер.', 'Готов? Нажми кнопку «Начать». Удачи!'],
     kidShadow: ['Добро пожаловать, юный астронавт! В глубоком тёмном кратере сломалась башня связи.', 'На солнце твой скафандр сильно нагревается. А в тени кратера минус 173 градуса! Энергия и здоровье быстро замерзают.', 'Вот секрет. На Земле воздух работает как одеяло и сохраняет тепло. На Луне воздуха нет, поэтому на солнце кипяток, а в тени мороз.', 'Твой план: поезжай на ровере к кратеру. Подойди к каждому светящемуся месту на солнечном краю и нажми E, чтобы поставить гигантское зеркало. У тебя три зеркала.', 'Зеркала отразят солнечный свет в тёмный кратер и создадут тёплое светлое пятно вокруг башни.', 'Теперь спустись вниз, встань в тёплый свет и нажми E у башни, чтобы начать ремонт. Если отойдёшь, ремонт встанет на паузу — можно согреться и вернуться.', 'Ходи клавишами W, A, S и D, прыгай пробелом, действуй клавишей E. Клавиша C меняет камеру.', 'Готов? Нажми кнопку «Начать». Удачи!'],
     tank: 'Бак O₂ базы', o2home: 'Путь домой: нужно ~{n}%', obj_fill: 'Кислородный бак базы: {n}%', maker: 'Кислородная машина', heating: 'греются камни: {n}', idle: 'готова', rocks: 'Сдано камней', obj_home: 'Вернитесь и пополните кислород', w_turn: 'НЕМЕДЛЕННО ПОВОРАЧИВАЙ! У тебя {a}% кислорода — на дорогу домой нужно около {b}%.', w_soon: 'Скоро пора домой — кислород приближается к белой черте.', w_tank0: 'Бак базы ПУСТ — лаборатория не может заправить скафандр! Резервная система делает воздух очень медленно. Привези камни!', w_tankLow: 'Бак базы почти пуст — скорее привези камни!', f_oxy: '+{o}% кислорода базы · +${m}', f_newRocks: 'В кратерах найдены новые светящиеся камни!', tip_out: 'Теперь ты снаружи. Скафандр тратит кислород — следи за таймером рядом с «Кислород».', tip_run: 'Когда бежишь, дышишь чаще: кислород уходит почти вдвое быстрее.', tip_rover: 'Ровер быстрый, поэтому каждая поездка тратит меньше кислорода. Езди, чтобы беречь воздух!', tip_half: 'Половина кислорода израсходована. Держи шкалу кислорода выше белой черты — столько нужно, чтобы вернуться домой.', tip_rock: 'Этот тёмный лавовый камень почти наполовину состоит из кислорода, запертого в минералах!', tip_maker: 'Кислородная машина нагревает камни и извлекает из них кислород. Смотри, как наполняется бак базы!', tip_refill: 'Лаборатория заправляет скафандр из бака базы. Каждая заправка тратит кислород базы.', winT1: 'База снова дышит!', winD1: 'Ты добыл из лунных камней достаточно кислорода, чтобы наполнить бак базы (камней: {n}, время {t}). Лунные камни примерно на 40–45 % по массе состоят из кислорода — он заперт в минералах вроде ильменита, которые образовались в древней лаве. Будущие астронавты собираются так получать воздух для дыхания и ракетное топливо.',
+    map_title: 'КАРТА ЛУНЫ', map_sub: 'Настоящая фотокарта всей Луны с аппарата NASA Lunar Reconnaissance Orbiter', map_btn: 'КАРТА', map_close: 'ЗАКРЫТЬ', map_credit: 'Карта: NASA / GSFC / Университет штата Аризона (мозаика камеры LRO) · M или Esc — закрыть', map_here: 'ТЫ ЗДЕСЬ', map_lvl: 'Уровень {n}', map_near: 'Видимая сторона (к Земле)', map_far: 'Обратная сторона', map_hint: 'Нажми на отметку, чтобы узнать о месте.', site1_name: 'Долина Тавр–Литтров (Аполлон-17)', site1_info: 'Эту долину залила древняя лава. В 1972 году астронавты «Аполлона-17» нашли здесь оранжевые стеклянные шарики, созданные вулканическими «огненными фонтанами». Тёмная лава богата ильменитом — минералом, из которого можно извлечь кислород. Поэтому наша кислородная база здесь.', site2_name: 'Кратер Шеклтон, южный полюс', site2_info: 'Около 21 км в ширину и глубже 4 км. На полюсе Солнце всегда стоит очень низко, поэтому дно кратера миллиарды лет находится в тени и это одно из самых холодных известных мест — гораздо холоднее −173 °C.', apollo_info: '«Аполлон-{n}» сел здесь в {y} году.', help_map: 'M — карта Луны (где ты на настоящей Луне)',
     clock: 'Лунное время', t_out: 'Снаружи', t_suit: 'Скафандр', ph_day: 'День', ph_night: 'Ночь', ph_dawn: 'Рассвет', ph_dusk: 'Закат',
     w_cold: 'СКАФАНДР ЗАМЕРЗАЕТ — выйдите на солнце или в луч зеркала!', w_hot: 'СКАФАНДР ПЕРЕГРЕВАЕТСЯ — уйдите в тень или в ровер!',
     w_dark: 'Тень кратера: нет воздуха, чтобы удерживать тепло — здесь −173 °C! Поставьте зеркала на кромке.',
@@ -746,6 +757,32 @@ const CSS = `
 .mg-bar{position:relative}.mg-bar .mk{position:absolute;top:0;bottom:0;width:3px;margin-left:-1px;background:#fff;box-shadow:0 0 6px rgba(255,255,255,.9);display:none}
 .mg-home{margin-top:4px;font-size:11px;color:#BBBAC6;display:none}
 .mg-tip{position:absolute;left:50%;top:150px;transform:translateX(-50%);max-width:min(560px,80vw);padding:10px 18px;font-size:14px;line-height:1.5;color:#E2E2E2;text-align:center;opacity:0;transition:opacity .4s;pointer-events:none;border-color:rgba(183,206,206,.45)}
+.mg-mapbtn{position:absolute;left:84px;bottom:18px;padding:9px 16px;font-size:12px;font-weight:700;letter-spacing:.14em;color:#E2E2E2;cursor:pointer;border:1px solid rgba(212,219,219,.25);font-family:inherit}
+.mg-mapbtn:hover{border-color:#B7CECE}
+.mg-mapcard{width:min(1180px,96vw);max-height:calc(100vh - 32px);overflow:auto;padding:20px 22px 16px;border-radius:22px}
+.mg-maphead{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:12px}
+.mg-maphead h2{margin:0;font-size:22px;letter-spacing:.12em}.mg-maphead p{margin:4px 0 0;font-size:13px;color:#BBBAC6}
+.mg-maphead .mg-btn{width:auto;min-height:40px;margin:0;padding:0 18px;flex:0 0 auto}
+.mg-mapwrap{position:relative;width:min(100%,calc((100vh - 290px)*2));aspect-ratio:2/1;margin:0 auto;border-radius:12px;overflow:hidden;background:#1C0F13;box-shadow:inset 0 0 0 1px rgba(212,219,219,.2)}
+.mg-mapwrap img{position:absolute;inset:0;width:100%;height:100%;display:block;user-select:none;-webkit-user-drag:none}
+.mg-mapwrap .gl{position:absolute;background:rgba(28,15,19,.28);pointer-events:none}
+.mg-mapwrap .gl.v{top:0;bottom:0;width:1px}.mg-mapwrap .gl.h{left:0;right:0;height:1px}
+.mg-mapwrap .gt{position:absolute;font-size:10px;font-weight:700;color:rgba(28,15,19,.75);pointer-events:none}
+.mg-mapwrap .side{position:absolute;top:6px;padding:2px 8px;border-radius:6px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#1C0F13;background:rgba(226,226,226,.75);pointer-events:none}
+.mg-pin{position:absolute;transform:translate(-50%,-50%);border:0;padding:0;background:none;cursor:pointer;font-family:inherit}
+.mg-pin .dot{display:block;width:12px;height:12px;border-radius:50%;background:#FFD877;box-shadow:0 0 0 2px #1C0F13,0 0 10px rgba(255,216,119,.9)}
+.mg-pin.ap .dot{width:7px;height:7px;background:#E2E2E2;box-shadow:0 0 0 1.5px #1C0F13}
+.mg-pin .lb{position:absolute;left:14px;top:50%;transform:translateY(-50%);white-space:nowrap;padding:2px 7px;border-radius:6px;font-size:11px;font-weight:800;letter-spacing:.04em;color:#1C0F13;background:rgba(255,216,119,.92)}
+.mg-pin.ap .lb{left:9px;font-size:9.5px;font-weight:700;background:rgba(226,226,226,.85)}
+.mg-pin.left .lb{left:auto;right:9px}.mg-pin.up .lb{left:50%;top:auto;bottom:12px;transform:translateX(-50%)}
+.mg-pin.here .dot{background:#6EE7A0;box-shadow:0 0 0 2px #1C0F13,0 0 12px rgba(110,231,160,.9)}
+.mg-pin.here .lb{background:#6EE7A0}
+.mg-pin.here::before{content:"";position:absolute;left:50%;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;border:2px solid #6EE7A0;animation:mgping 1.6s ease-out infinite}
+.mg-pin.sel .dot{transform:scale(1.35)}
+@keyframes mgping{from{transform:scale(1);opacity:1}to{transform:scale(4.2);opacity:0}}
+.mg-mapinfo{margin:12px auto 0;width:min(100%,calc((100vh - 290px)*2));padding:12px 16px;border-radius:14px;background:rgba(28,15,19,.45);border:1px solid rgba(212,219,219,.14);text-align:left}
+.mg-mapinfo b{display:block;font-size:15px;margin-bottom:3px}.mg-mapinfo .co{font-size:12px;color:#BBBAC6;margin-bottom:6px}.mg-mapinfo p{margin:0;font-size:13.5px;line-height:1.55;color:#E2E2E2}
+.mg-mapcred{margin-top:10px;font-size:11px;color:#BBBAC6;text-align:center}
 .mg-env{position:absolute;right:18px;top:344px;width:208px;padding:10px 14px;font-size:12.5px;line-height:1.65}
 .mg-env .clk{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}.mg-env .clk b{font-size:17px;letter-spacing:.06em;font-variant-numeric:tabular-nums}.mg-env .clk span{color:#BBBAC6;font-size:11.5px;letter-spacing:.1em;text-transform:uppercase}
 .mg-env .tr{display:flex;justify-content:space-between;color:#BBBAC6}.mg-env .tr b{color:#E2E2E2;font-variant-numeric:tabular-nums}
@@ -854,8 +891,10 @@ function createGame(opts) {
   const cross = el('div', 'mg-cross'); root.appendChild(cross);
   const viewTag = el('div', 'mg-view mg-glass'); root.appendChild(viewTag);
   const pauseBtn = el('button', 'mg-pause mg-glass', 'II'); pauseBtn.type = 'button'; root.appendChild(pauseBtn);
+  const mapBtn = el('button', 'mg-mapbtn mg-glass', ''); mapBtn.type = 'button'; root.appendChild(mapBtn);
+  const ovMap = el('div', 'mg-ov');
   const ovHelp = el('div', 'mg-ov'), ovPause = el('div', 'mg-ov'), ovEnd = el('div', 'mg-ov');
-  root.append(ovHelp, ovPause, ovEnd);
+  root.append(ovMap, ovHelp, ovPause, ovEnd);
   const load = el('div', 'mg-load', ''); root.appendChild(load);
 
   // ---------- read-aloud narration (browser speech synthesis)
@@ -912,6 +951,48 @@ function createGame(opts) {
     ovPause.querySelector('#r').onclick = () => setPause(false);
     ovPause.querySelector('#q').onclick = exit;
     load.textContent = tr('loading');
+    mapBtn.textContent = '🗺 ' + tr('map_btn'); mapBtn.title = tr('help_map');
+    buildMap();
+  }
+  // ---------- real Moon map
+  const MAP_URL = opts.mapUrl || window.MOON_MAP_URL || '';
+  let mapOpen = false, mapWasPaused = false, mapSel = null;
+  const fmtLat = v => Math.abs(v).toFixed(1) + '° ' + (v >= 0 ? 'N' : 'S'), fmtLon = v => Math.abs(v).toFixed(1) + '° ' + (v >= 0 ? 'E' : 'W');
+  const mapPos = (lat, lon) => ({ x: (lon + 180) / 360 * 100, y: clamp((90 - lat) / 180 * 100, 3, 97) });
+  function hereKey() { return MISSION ? 'site2' : 'site1'; }
+  function siteInfo(si) {
+    if (si.apollo) return { name: 'Apollo ' + si.apollo, co: fmtLat(si.lat) + ', ' + fmtLon(si.lon), text: tr('apollo_info', { n: si.apollo, y: si.y }) };
+    return { name: tr(si.key + '_name') + ' · ' + tr('map_lvl', { n: si.level }), co: fmtLat(si.lat) + ', ' + fmtLon(si.lon), text: tr(si.key + '_info') };
+  }
+  function buildMap() {
+    let grid = '';
+    for (let lon = -150; lon <= 150; lon += 30) { const x = (lon + 180) / 360 * 100; grid += '<i class="gl v" style="left:' + x + '%"></i><span class="gt" style="left:calc(' + x + '% + 3px);bottom:3px">' + Math.abs(lon) + '°' + (lon > 0 ? 'E' : lon < 0 ? 'W' : '') + '</span>'; }
+    for (let lat = -60; lat <= 60; lat += 30) { const y = (90 - lat) / 180 * 100; grid += '<i class="gl h" style="top:' + y + '%"></i><span class="gt" style="left:4px;top:calc(' + y + '% + 2px)">' + Math.abs(lat) + '°' + (lat > 0 ? 'N' : lat < 0 ? 'S' : '') + '</span>'; }
+    const pins = MAP_SITES.map((si, i) => {
+      const p = mapPos(si.lat, si.lon), here = si.key === hereKey();
+      const label = si.apollo ? 'Apollo ' + si.apollo : (here ? tr('map_here') + ' · ' : '') + tr('map_lvl', { n: si.level });
+      return '<button type="button" class="mg-pin' + (si.apollo ? ' ap' : '') + (here ? ' here' : '') + (si.lb ? ' ' + si.lb : '') + '" data-i="' + i + '" style="left:' + p.x + '%;top:' + p.y + '%"><span class="dot"></span><span class="lb">' + label + '</span></button>';
+    }).join('');
+    ovMap.innerHTML = '<div class="mg-mapcard mg-glass"><div class="mg-maphead"><div><h2>' + tr('map_title') + '</h2><p>' + tr('map_sub') + ' · ' + tr('map_hint') + '</p></div><button class="mg-btn" type="button" id="mx">' + tr('map_close') + '</button></div>' +
+      '<div class="mg-mapwrap">' + (MAP_URL ? '<img alt="" src="' + MAP_URL + '">' : '') + grid +
+      '<span class="side" style="left:calc(25% + 6px)">' + tr('map_near') + '</span><span class="side" style="left:4px">' + tr('map_far') + '</span><span class="side" style="right:4px">' + tr('map_far') + '</span>' + pins + '</div>' +
+      '<div class="mg-mapinfo"><b></b><div class="co"></div><p></p></div><div class="mg-mapcred">' + tr('map_credit') + '</div></div>';
+    ovMap.querySelector('#mx').onclick = () => toggleMap(false);
+    ovMap.querySelectorAll('.mg-pin').forEach(b => { b.onclick = () => selectSite(+b.dataset.i); });
+    selectSite(mapSel == null ? MAP_SITES.findIndex(si => si.key === hereKey()) : mapSel);
+  }
+  function selectSite(i) {
+    mapSel = i; const inf = siteInfo(MAP_SITES[i]);
+    ovMap.querySelector('.mg-mapinfo b').textContent = inf.name; ovMap.querySelector('.mg-mapinfo .co').textContent = inf.co; ovMap.querySelector('.mg-mapinfo p').textContent = inf.text;
+    ovMap.querySelectorAll('.mg-pin').forEach(b => b.classList.toggle('sel', +b.dataset.i === i));
+  }
+  function toggleMap(on) {
+    if (on == null) on = !mapOpen;
+    if (on === mapOpen) return;
+    if (on && (S.over || ovHelp.style.display === 'flex' || ovPause.style.display === 'flex')) return;
+    mapOpen = on; ovMap.style.display = on ? 'flex' : 'none';
+    if (on) { mapWasPaused = S.paused; S.paused = true; for (const k in keys) keys[k] = false; selectSite(MAP_SITES.findIndex(si => si.key === hereKey())); }
+    else if (!mapWasPaused) S.paused = false;
   }
 
   // ---------- three.js
@@ -1214,7 +1295,9 @@ function createGame(opts) {
     const k = e.code;
     if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(k)) e.preventDefault();
     keys[k] = true;
-    if (k === 'Escape') { if (!S.over) setPause(!S.paused); return; }
+    if (k === 'Escape') { if (mapOpen) { toggleMap(false); return; } if (!S.over) setPause(!S.paused); return; }
+    if (k === 'KeyM' && !e.repeat) { toggleMap(); return; }
+    if (mapOpen) return;
     if (k === 'KeyP') { setPause(!S.paused); return; }
     if (k === 'KeyE' && !S.paused && !S.over) interact();
     if (k === 'Space' && !e.repeat) jump();
@@ -1249,6 +1332,7 @@ function createGame(opts) {
   canvas.addEventListener('pointerup', onUp); canvas.addEventListener('pointercancel', onUp);
   canvas.addEventListener('wheel', onWheel, { passive: false });
   pauseBtn.addEventListener('click', () => setPause(true));
+  mapBtn.addEventListener('click', () => toggleMap(true));
 
   function flash(text) { viewTag.textContent = text; S.viewUntil = performance.now() + 1900; }
   // spoken one-time tips that teach how to manage oxygen (level 1)
@@ -1981,7 +2065,7 @@ function createGame(opts) {
 
   // ---------- API
   return {
-    setLang(l) { if (T[l]) { lang = l; const helpOpen = ovHelp.style.display === 'flex', pauseOpen = ovPause.style.display === 'flex'; stopSpeech(); applyDom(); ovHelp.style.display = helpOpen ? 'flex' : 'none'; ovPause.style.display = pauseOpen ? 'flex' : 'none'; if (helpOpen) startBriefing(); } },
+    setLang(l) { if (T[l]) { lang = l; const helpOpen = ovHelp.style.display === 'flex', pauseOpen = ovPause.style.display === 'flex'; stopSpeech(); applyDom(); ovMap.style.display = mapOpen ? 'flex' : 'none'; ovHelp.style.display = helpOpen ? 'flex' : 'none'; ovPause.style.display = pauseOpen ? 'flex' : 'none'; if (helpOpen) startBriefing(); } },
     setVolume(v) { sfx.setVolume(v); voiceVol = v; },
     setContrast(c) { canvas.style.filter = c === 1 ? '' : 'contrast(' + c + ')'; },
     destroy() {
