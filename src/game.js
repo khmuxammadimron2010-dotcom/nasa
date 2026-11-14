@@ -124,6 +124,9 @@ const T = {
     winT: 'Discovery complete!', winD: '{d} You delivered {n} samples in {t}.',
     loseT: 'Mission failed', lose_rad: 'Radiation sickness took the astronaut.', lose_o2: 'The astronaut ran out of oxygen.',
     again: 'PLAY AGAIN', site: 'Crater', lab: 'LAB',
+    kidTitle: 'Mission briefing for young astronauts', kidTitleM: 'Mission briefing: The Deadly Shadow', readAloud: '🔊 Read aloud', stopRead: '⏹ Stop reading', controls: 'Controls',
+    kidMoon: ['Welcome, young astronaut! You are standing on the Moon.', 'Your mission: find glowing rocks and bring them to the lab. Scientists study the rocks to learn how the Moon was born.', 'Walk with the W, A, S and D keys. Hold Shift to run, and press Space to jump.', 'Find the rover, which is a moon car, and press E to get in. Then drive to the glowing crater.', 'Stand next to a glowing rock and press E to pick it up. Your backpack holds four rocks. Press E near the rover to load them.', 'Drive back to the lab, walk inside, and press E at the storage rack. You earn money for every rock!', 'Watch your bars. Oxygen and energy go down outside, so return to the lab to refill them. Healing costs money.', 'Be careful! The Moon has no air. In the sun it is very hot, plus 121 degrees, and at night it is freezing, minus 173 degrees.', 'Ready? Press the Begin button. Good luck!'],
+    kidShadow: ['Welcome, young astronaut! A radio tower is broken inside a deep, dark crater.', 'In the sunshine, your space suit gets very hot. But in the crater\'s shadow it is minus 173 degrees! Your energy and health freeze fast.', 'Here is a secret. On Earth, the air works like a blanket and keeps the heat. The Moon has no air, so the sun is boiling and the shade is freezing.', 'Your plan: drive the rover to the crater. Walk to each glowing spot on the sunny edge and press E to put up a giant mirror. You have three mirrors.', 'The mirrors bounce sunlight into the dark crater and make a warm, bright spot around the tower.', 'Now climb down, stand in the warm light, and press E at the tower to start repairing it. If you walk away, the repair pauses, so you can warm up and come back.', 'Walk with W, A, S and D, jump with Space, and press E to use things. Press C to change the camera.', 'Ready? Press the Begin button. Good luck!'],
     clock: 'Lunar time', t_out: 'Outside', t_suit: 'Suit', ph_day: 'Day', ph_night: 'Night', ph_dawn: 'Sunrise', ph_dusk: 'Sunset',
     w_cold: 'SUIT FREEZING — get into sunlight or the mirror beam!', w_hot: 'SUIT OVERHEATING — get into shade or the rover!',
     w_dark: 'Crater shadow: no air to hold heat — it is −173 °C! Place mirrors on the rim.',
@@ -171,6 +174,9 @@ const T = {
     winT: 'Kashfiyot yakunlandi!', winD: '{d} Siz {t} ichida {n} ta namuna yetkazdingiz.',
     loseT: 'Missiya muvaffaqiyatsiz', lose_rad: 'Nur kasalligi kosmonavtni olib ketdi.', lose_o2: 'Kosmonavtning kislorodi tugadi.',
     again: 'QAYTA O‘YNASH', site: 'Krater', lab: 'LAB',
+    kidTitle: 'Yosh kosmonavtlar uchun missiya tushuntirishi', kidTitleM: 'Missiya tushuntirishi: O‘limli soya', readAloud: '🔊 Ovoz chiqarib o‘qish', stopRead: '⏹ To‘xtatish', controls: 'Boshqaruv',
+    kidMoon: ['Xush kelibsiz, yosh kosmonavt! Siz hozir Oyning ustidasiz.', 'Vazifangiz: yonib turgan toshlarni topib, laboratoriyaga olib kelish. Olimlar bu toshlarni o‘rganib, Oy qanday paydo bo‘lganini bilib oladilar.', 'W, A, S, D tugmalari bilan yuring. Yugurish uchun Shift, sakrash uchun Probel tugmasini bosing.', 'Oy mashinasi — roverni toping va E tugmasini bosib o‘tiring. Keyin yonib turgan kraterga haydang.', 'Yonib turgan tosh yoniga borib, olish uchun E ni bosing. Ryukzakka to‘rtta tosh sig‘adi. Roverga yuklash uchun rover yonida yana E ni bosing.', 'Laboratoriyaga qaytib, ichkariga kiring va omborxona yonida E ni bosing. Har bir tosh uchun pul olasiz!', 'Ko‘rsatkichlarni kuzating. Tashqarida kislorod va energiya kamayadi, ularni to‘ldirish uchun laboratoriyaga qayting. Davolanish pul turadi.', 'Ehtiyot bo‘ling! Oyda havo yo‘q. Quyoshda juda issiq, ortiqcha 121 daraja, tunda esa muzdek sovuq, minus 173 daraja.', 'Tayyormisiz? Boshlash tugmasini bosing. Omad!'],
+    kidShadow: ['Xush kelibsiz, yosh kosmonavt! Chuqur va qorong‘i krater ichida aloqa minorasi sindi.', 'Quyosh nurida kostyumingiz juda qiziydi. Krater soyasida esa minus 173 daraja! Energiya va salomatlik tez muzlaydi.', 'Mana bir sir. Yerda havo ko‘rpa kabi issiqlikni ushlab turadi. Oyda havo yo‘q, shuning uchun quyoshda qaynaydi, soyada muzlaydi.', 'Rejangiz: roverda kraterga boring. Quyoshli qirg‘oqdagi har bir yonib turgan joyga borib, E ni bosing va ulkan oyna o‘rnating. Sizda uchta oyna bor.', 'Oynalar quyosh nurini qorong‘i kraterga qaytaradi va minora atrofida iliq, yorug‘ joy hosil qiladi.', 'Endi pastga tushing, iliq nurda turing va minora yonida E ni bosib, ta’mirlashni boshlang. Uzoqlashsangiz, ta’mir to‘xtab turadi, isinib qaytishingiz mumkin.', 'W, A, S, D bilan yuring, Probel bilan sakrang, E bilan harakat qiling. C tugmasi kamerani almashtiradi.', 'Tayyormisiz? Boshlash tugmasini bosing. Omad!'],
     clock: 'Oy vaqti', t_out: 'Tashqarida', t_suit: 'Kostyum', ph_day: 'Kunduz', ph_night: 'Tun', ph_dawn: 'Tong', ph_dusk: 'Shom',
     w_cold: 'KOSTYUM MUZLAYAPTI — quyosh nuriga yoki oyna nuriga chiqing!', w_hot: 'KOSTYUM O‘TA QIZIYAPTI — soyaga yoki roverga o‘ting!',
     w_dark: 'Krater soyasi: issiqlikni ushlab turadigan havo yo‘q — −173 °C! Qirg‘oqqa oynalar qo‘ying.',
@@ -218,6 +224,9 @@ const T = {
     winT: 'Открытие совершено!', winD: '{d} Вы доставили образцов: {n}, время: {t}.',
     loseT: 'Миссия провалена', lose_rad: 'Лучевая болезнь погубила астронавта.', lose_o2: 'У астронавта закончился кислород.',
     again: 'ИГРАТЬ СНОВА', site: 'Кратер', lab: 'ЛАБ',
+    kidTitle: 'Инструктаж для юных астронавтов', kidTitleM: 'Инструктаж: Смертельная тень', readAloud: '🔊 Прочитать вслух', stopRead: '⏹ Остановить', controls: 'Управление',
+    kidMoon: ['Добро пожаловать, юный астронавт! Ты стоишь на Луне.', 'Твоя миссия: найти светящиеся камни и принести их в лабораторию. Учёные изучают эти камни, чтобы узнать, как появилась Луна.', 'Ходи клавишами W, A, S и D. Держи Shift, чтобы бежать, и нажми пробел, чтобы прыгнуть.', 'Найди ровер — это лунная машина — и нажми E, чтобы сесть. Потом поезжай к светящемуся кратеру.', 'Встань рядом со светящимся камнем и нажми E, чтобы поднять его. В рюкзак помещается четыре камня. Рядом с ровером снова нажми E, чтобы погрузить их.', 'Вернись в лабораторию, зайди внутрь и нажми E у склада. За каждый камень ты получишь деньги!', 'Следи за шкалами. Снаружи кислород и энергия убывают, поэтому возвращайся в лабораторию, чтобы пополнить их. Лечение стоит денег.', 'Будь осторожен! На Луне нет воздуха. На солнце очень жарко, плюс 121 градус, а ночью лютый холод, минус 173 градуса.', 'Готов? Нажми кнопку «Начать». Удачи!'],
+    kidShadow: ['Добро пожаловать, юный астронавт! В глубоком тёмном кратере сломалась башня связи.', 'На солнце твой скафандр сильно нагревается. А в тени кратера минус 173 градуса! Энергия и здоровье быстро замерзают.', 'Вот секрет. На Земле воздух работает как одеяло и сохраняет тепло. На Луне воздуха нет, поэтому на солнце кипяток, а в тени мороз.', 'Твой план: поезжай на ровере к кратеру. Подойди к каждому светящемуся месту на солнечном краю и нажми E, чтобы поставить гигантское зеркало. У тебя три зеркала.', 'Зеркала отразят солнечный свет в тёмный кратер и создадут тёплое светлое пятно вокруг башни.', 'Теперь спустись вниз, встань в тёплый свет и нажми E у башни, чтобы начать ремонт. Если отойдёшь, ремонт встанет на паузу — можно согреться и вернуться.', 'Ходи клавишами W, A, S и D, прыгай пробелом, действуй клавишей E. Клавиша C меняет камеру.', 'Готов? Нажми кнопку «Начать». Удачи!'],
     clock: 'Лунное время', t_out: 'Снаружи', t_suit: 'Скафандр', ph_day: 'День', ph_night: 'Ночь', ph_dawn: 'Рассвет', ph_dusk: 'Закат',
     w_cold: 'СКАФАНДР ЗАМЕРЗАЕТ — выйдите на солнце или в луч зеркала!', w_hot: 'СКАФАНДР ПЕРЕГРЕВАЕТСЯ — уйдите в тень или в ровер!',
     w_dark: 'Тень кратера: нет воздуха, чтобы удерживать тепло — здесь −173 °C! Поставьте зеркала на кромке.',
@@ -737,6 +746,17 @@ const CSS = `
 .mg-card p{margin:0 0 16px;font-size:14px;line-height:1.65;color:#bed0e4}
 .mg-card ul{list-style:none;margin:0 0 18px;padding:0;text-align:left}
 .mg-card li{padding:8px 4px;border-bottom:1px solid rgba(255,255,255,.07);font-size:14px;color:#dbe7f7}
+.mg-brief{width:min(100%,640px);padding-bottom:20px}
+.mg-btns{position:sticky;bottom:-20px;padding:14px 0 0;background:linear-gradient(rgba(10,20,40,0),rgba(10,20,40,.96) 28%)}
+.mg-btns .mg-btn:first-child{margin-top:0}
+.mg-sub{margin:0 0 14px;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#8ea4c2}
+.mg-card ol.mg-steps{list-style:none;counter-reset:st;margin:0 0 14px;padding:0;text-align:left}
+.mg-steps li{counter-increment:st;position:relative;padding:8px 12px 8px 46px;margin:0 0 4px;border:0;border-radius:12px;font-size:15px;line-height:1.5;transition:background .25s,color .25s}
+.mg-steps li::before{content:counter(st);position:absolute;left:10px;top:9px;width:26px;height:26px;border-radius:50%;background:rgba(127,227,255,.18);color:#7fe3ff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}
+.mg-steps li.on{background:rgba(127,227,255,.2);color:#fff}
+.mg-steps li.on::before{background:#7fe3ff;color:#041626}
+.mg-ctl{margin:0 0 6px;text-align:left;color:#8ea4c2;font-size:13px}.mg-ctl summary{cursor:pointer;letter-spacing:.1em;text-transform:uppercase;padding:6px 2px}
+.mg-ctl ul{margin:6px 0 0}.mg-ctl li{font-size:13px;padding:5px 4px}
 .mg-btn{display:block;width:100%;min-height:50px;margin:10px 0 0;border-radius:14px;border:1px solid rgba(179,215,255,.25);background:rgba(14,28,54,.65);color:#eef5ff;font:inherit;font-size:13px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;cursor:pointer;transition:transform .3s cubic-bezier(.2,.8,.2,1),border-color .2s,background .2s}
 .mg-btn:hover{transform:translateY(-2px);border-color:rgba(145,230,255,.6)}
 .mg-btn.pri{border-color:transparent;color:#041626;background:linear-gradient(110deg,#9aeaff,#5cc4ec 55%,#4aa9dc)}
@@ -811,12 +831,55 @@ function createGame(opts) {
   root.append(ovHelp, ovPause, ovEnd);
   const load = el('div', 'mg-load', ''); root.appendChild(load);
 
+  // ---------- read-aloud narration (browser speech synthesis)
+  const synth = window.speechSynthesis || null;
+  let voices = [], spkTok = 0, voiceVol = opts.volume == null ? 0.7 : opts.volume, speaking = false;
+  const loadVoices = () => { try { voices = synth.getVoices(); } catch (e) { voices = []; } };
+  if (synth) { loadVoices(); try { synth.addEventListener('voiceschanged', loadVoices); } catch (e) { /* ignore */ } }
+  const VOICE_PREF = { en: ['en'], uz: ['uz', 'tr', 'ru'], ru: ['ru'] }, VOICE_TAG = { en: 'en-US', uz: 'uz-UZ', ru: 'ru-RU' };
+  function pickVoice() {
+    for (const p of VOICE_PREF[lang]) { const v = voices.find(x => (x.lang || '').toLowerCase().replace('_', '-').startsWith(p)); if (v) return v; }
+    return null;
+  }
+  function setReadBtn() { const b = ovHelp.querySelector('#rd'); if (b) b.textContent = speaking ? tr('stopRead') : tr('readAloud'); }
+  function stopSpeech() {
+    spkTok++; speaking = false;
+    if (synth) { try { synth.cancel(); } catch (e) { /* ignore */ } }
+    ovHelp.querySelectorAll('.mg-steps li.on').forEach(li => li.classList.remove('on')); setReadBtn();
+  }
+  function speakLines(lines, onLine) {
+    if (!synth || voiceVol <= 0.001) return;
+    stopSpeech(); const tok = spkTok; speaking = true; setReadBtn();
+    const say = i => {
+      if (tok !== spkTok) return;
+      if (i >= lines.length) { speaking = false; setReadBtn(); if (onLine) onLine(-1); return; }
+      const u = new SpeechSynthesisUtterance(String(lines[i]).replace(/<[^>]+>/g, ''));
+      const v = pickVoice(); if (v) { u.voice = v; u.lang = v.lang; } else u.lang = VOICE_TAG[lang];
+      u.rate = 0.92; u.pitch = 1.05; u.volume = clamp(voiceVol * 1.3, 0, 1);
+      u.onstart = () => { if (tok === spkTok && onLine) onLine(i); };
+      u.onend = () => say(i + 1);
+      u.onerror = () => { if (tok === spkTok) say(i + 1); };
+      synth.speak(u);
+    };
+    setTimeout(() => say(0), 80);
+  }
+  function startBriefing() {
+    const items = ovHelp.querySelectorAll('.mg-steps li');
+    speakLines([tr(MISSION ? 'kidTitleM' : 'kidTitle')].concat(T[lang][MISSION ? 'kidShadow' : 'kidMoon']), i => {
+      items.forEach((li, k) => li.classList.toggle('on', k === i - 1));
+      if (i >= 1 && items[i - 1]) items[i - 1].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  }
+
   function applyDom() {
     BARS.forEach(([k]) => { bar[k].n.textContent = tr(k); });
     pauseBtn.title = tr('paused');
-    ovHelp.innerHTML = '<div class="mg-card mg-glass"><h2>' + tr('helpTitle') + '</h2><p>' + tr(MISSION ? 'mhelpGoal' : 'helpGoal') + '</p><ul>' +
-      T[lang].help.map(h => '<li>' + h + '</li>').join('') + '</ul><button class="mg-btn pri" type="button">' + tr('begin') + '</button></div>';
-    ovHelp.querySelector('button').onclick = () => { ovHelp.style.display = 'none'; sfx.resume(); S.paused = false; };
+    ovHelp.innerHTML = '<div class="mg-card mg-glass mg-brief"><h2>' + tr('helpTitle') + '</h2><div class="mg-sub">' + tr(MISSION ? 'kidTitleM' : 'kidTitle') + '</div><ol class="mg-steps">' +
+      T[lang][MISSION ? 'kidShadow' : 'kidMoon'].map(h => '<li>' + h + '</li>').join('') + '</ol><details class="mg-ctl"><summary>' + tr('controls') + '</summary><ul>' +
+      T[lang].help.map(h => '<li>' + h + '</li>').join('') + '</ul></details><div class="mg-btns"><button class="mg-btn" id="rd" type="button"></button><button class="mg-btn pri" id="go" type="button">' + tr('begin') + '</button></div></div>';
+    ovHelp.querySelector('#go').onclick = () => { stopSpeech(); ovHelp.style.display = 'none'; sfx.resume(); S.paused = false; };
+    ovHelp.querySelector('#rd').onclick = () => { if (speaking) stopSpeech(); else startBriefing(); };
+    setReadBtn();
     ovPause.innerHTML = '<div class="mg-card mg-glass"><h2>' + tr('paused') + '</h2><button class="mg-btn pri" id="r" type="button">' + tr('resume') +
       '</button><button class="mg-btn" id="q" type="button">' + tr('quit') + '</button></div>';
     ovPause.querySelector('#r').onclick = () => setPause(false);
@@ -1313,6 +1376,7 @@ function createGame(opts) {
     ovEnd.innerHTML = '<div class="mg-card mg-glass"><h2>' + title + '</h2><p>' + text + '</p><button class="mg-btn pri" id="a" type="button">' + tr('again') +
       '</button><button class="mg-btn" id="q" type="button">' + tr('quit') + '</button></div>';
     ovEnd.style.display = 'flex';
+    speakLines([title, text]);
     ovEnd.querySelector('#a').onclick = () => { const o = opts; stop(); start(o); };
     ovEnd.querySelector('#q').onclick = exit;
     sfx.drive(0, false);
@@ -1807,18 +1871,18 @@ function createGame(opts) {
     planChunks(S.foot.x, S.foot.z, true); px0 = S.foot.x; pz0 = S.foot.z;
     if (opts.contrast && opts.contrast !== 1) canvas.style.filter = 'contrast(' + opts.contrast + ')';
     load.style.display = 'none';
-    ovHelp.style.display = 'flex';
+    ovHelp.style.display = 'flex'; startBriefing();
     last = performance.now();
     raf = requestAnimationFrame(frame);
   }, 60);
 
   // ---------- API
   return {
-    setLang(l) { if (T[l]) { lang = l; const helpOpen = ovHelp.style.display === 'flex', pauseOpen = ovPause.style.display === 'flex'; applyDom(); ovHelp.style.display = helpOpen ? 'flex' : 'none'; ovPause.style.display = pauseOpen ? 'flex' : 'none'; } },
-    setVolume(v) { sfx.setVolume(v); },
+    setLang(l) { if (T[l]) { lang = l; const helpOpen = ovHelp.style.display === 'flex', pauseOpen = ovPause.style.display === 'flex'; stopSpeech(); applyDom(); ovHelp.style.display = helpOpen ? 'flex' : 'none'; ovPause.style.display = pauseOpen ? 'flex' : 'none'; if (helpOpen) startBriefing(); } },
+    setVolume(v) { sfx.setVolume(v); voiceVol = v; },
     setContrast(c) { canvas.style.filter = c === 1 ? '' : 'contrast(' + c + ')'; },
     destroy() {
-      destroyed = true; cancelAnimationFrame(raf);
+      destroyed = true; cancelAnimationFrame(raf); stopSpeech();
       window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('resize', onResize); window.removeEventListener('blur', onBlur);
       for (const [, c] of chunks) removeChunk(c); chunks.clear();
