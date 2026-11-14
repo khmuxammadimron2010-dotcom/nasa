@@ -25,7 +25,7 @@ const SUN = new THREE.Vector3(0.82, 0.34, 0.5).normalize();
 // ----------------------------------------------------------------- strings
 const T = {
   en: {
-    health: 'Health', oxygen: 'Oxygen', energy: 'Energy', radiation: 'Radiation',
+    health: 'Health', oxygen: 'Oxygen', energy: 'Energy', radiation: 'Radiation', rover: 'Rover',
     delivered: 'Samples delivered', carrying: 'Backpack', cargo: 'Rover cargo', kmh: 'km/h',
     st_ok: 'Safe', st_fatigue: 'Fatigue', st_illness: 'Radiation sickness', st_injury: 'Radiation injury',
     obj_getRover: 'Walk to the rover and get in', obj_drive: 'Drive to the glowing crater',
@@ -42,12 +42,14 @@ const T = {
     w_o2: 'Low oxygen! Return to the lab.', w_en: 'Energy empty — the rover crawls slowly!',
     w_edge: 'You are leaving the mapped area. Turn back.', w_rad: 'High radiation! Get to the lab.',
     m_refill: 'Lab: oxygen, energy and health are being restored',
+    m_repair: 'Lab: the rover is being repaired',
+    w_hit: 'Collision! Rover −{d}%', w_rv1: 'Rover badly damaged — avoid the stones, repair it at the lab.', w_rv0: 'Rover wrecked — it can only crawl. Repair it at the lab.',
     v_first: 'FIRST-PERSON VIEW', v_third: 'THIRD-PERSON VIEW',
     helpTitle: 'MOON MISSION',
     help: ['W / S — walk or drive forward / back', 'A / D — turn left / right',
       'Space — jump · Shift — run · B — brake', 'E — interact (rover, rocks, lab)',
       'C — switch 3rd / 1st person view', 'Drag the mouse — look around · Wheel — zoom', 'Esc — pause'],
-    helpGoal: 'Drive to the glowing craters, collect rock samples, load them into the rover and store 12 samples in the lab. The sun’s radiation hurts you outside, and oxygen and energy run down — return to the lab to recover.',
+    helpGoal: 'Drive to the glowing craters, collect rock samples, load them into the rover and store 12 samples in the lab. The sun’s radiation hurts you outside, and oxygen and energy run down — return to the lab to recover. Stones damage the rover — repair it at the lab.',
     begin: 'BEGIN MISSION', loading: 'Generating the Moon…',
     paused: 'PAUSED', resume: 'RESUME', quit: 'BACK TO LEVELS',
     winT: 'Discovery complete!', winD: '{d} You delivered {n} samples in {t}.',
@@ -55,7 +57,7 @@ const T = {
     again: 'PLAY AGAIN', site: 'Crater', lab: 'LAB'
   },
   uz: {
-    health: 'Salomatlik', oxygen: 'Kislorod', energy: 'Energiya', radiation: 'Radiatsiya',
+    health: 'Salomatlik', oxygen: 'Kislorod', energy: 'Energiya', radiation: 'Radiatsiya', rover: 'Rover',
     delivered: 'Yetkazilgan namunalar', carrying: 'Ryukzak', cargo: 'Rover yuki', kmh: 'km/soat',
     st_ok: 'Xavfsiz', st_fatigue: 'Charchoq', st_illness: 'Nur kasalligi', st_injury: 'Radiatsion jarohat',
     obj_getRover: 'Roverga borib, unga o‘tiring', obj_drive: 'Yonib turgan krater tomon yuring',
@@ -72,12 +74,14 @@ const T = {
     w_o2: 'Kislorod kam! Laboratoriyaga qayting.', w_en: 'Energiya tugadi — rover sekin yuradi!',
     w_edge: 'Xarita chegarasidan chiqyapsiz. Orqaga qayting.', w_rad: 'Radiatsiya yuqori! Laboratoriyaga boring.',
     m_refill: 'Laboratoriya: kislorod, energiya va salomatlik tiklanmoqda',
+    m_repair: 'Laboratoriya: rover ta’mirlanmoqda',
+    w_hit: 'To‘qnashuv! Rover −{d}%', w_rv1: 'Rover qattiq shikastlandi — toshlardan qoching, laboratoriyada ta’mirlang.', w_rv0: 'Rover ishdan chiqdi — faqat sekin yura oladi. Laboratoriyada ta’mirlang.',
     v_first: 'BIRINCHI SHAXS KO‘RINISHI', v_third: 'UCHINCHI SHAXS KO‘RINISHI',
     helpTitle: 'OY MISSIYASI',
     help: ['W / S — oldinga / orqaga yurish yoki haydash', 'A / D — chapga / o‘ngga burilish',
       'Space — sakrash · Shift — yugurish · B — tormoz', 'E — o‘zaro ta’sir (rover, toshlar, laboratoriya)',
       'C — ko‘rinish: 3-shaxs / 1-shaxs', 'Sichqonchani sudrang — atrofga qarash · G‘ildirak — yaqinlashtirish', 'Esc — pauza'],
-    helpGoal: 'Yonib turgan kraterlarga boring, tosh namunalarini yig‘ing, roverga yuklang va laboratoriyaga 12 ta namuna yetkazing. Tashqarida quyosh radiatsiyasi zarar qiladi, kislorod va energiya kamayadi — tiklanish uchun laboratoriyaga qayting.',
+    helpGoal: 'Yonib turgan kraterlarga boring, tosh namunalarini yig‘ing, roverga yuklang va laboratoriyaga 12 ta namuna yetkazing. Tashqarida quyosh radiatsiyasi zarar qiladi, kislorod va energiya kamayadi — tiklanish uchun laboratoriyaga qayting. Toshlar roverga zarar yetkazadi — uni laboratoriyada ta’mirlang.',
     begin: 'MISSIYANI BOSHLASH', loading: 'Oy yaratilmoqda…',
     paused: 'PAUZA', resume: 'DAVOM ETISH', quit: 'BOSQICHLARGA QAYTISH',
     winT: 'Kashfiyot yakunlandi!', winD: '{d} Siz {t} ichida {n} ta namuna yetkazdingiz.',
@@ -85,7 +89,7 @@ const T = {
     again: 'QAYTA O‘YNASH', site: 'Krater', lab: 'LAB'
   },
   ru: {
-    health: 'Здоровье', oxygen: 'Кислород', energy: 'Энергия', radiation: 'Радиация',
+    health: 'Здоровье', oxygen: 'Кислород', energy: 'Энергия', radiation: 'Радиация', rover: 'Ровер',
     delivered: 'Доставлено образцов', carrying: 'Рюкзак', cargo: 'Груз ровера', kmh: 'км/ч',
     st_ok: 'Безопасно', st_fatigue: 'Усталость', st_illness: 'Лучевая болезнь', st_injury: 'Лучевая травма',
     obj_getRover: 'Подойдите к роверу и сядьте в него', obj_drive: 'Езжайте к светящемуся кратеру',
@@ -102,12 +106,14 @@ const T = {
     w_o2: 'Мало кислорода! Вернитесь в лабораторию.', w_en: 'Энергия закончилась — ровер едва ползёт!',
     w_edge: 'Вы покидаете карту. Поверните назад.', w_rad: 'Высокая радиация! Идите в лабораторию.',
     m_refill: 'Лаборатория: восстанавливаются кислород, энергия и здоровье',
+    m_repair: 'Лаборатория: ровер ремонтируется',
+    w_hit: 'Столкновение! Ровер −{d}%', w_rv1: 'Ровер сильно повреждён — объезжайте камни, почините его в лаборатории.', w_rv0: 'Ровер разбит — он может лишь ползти. Почините его в лаборатории.',
     v_first: 'ВИД ОТ ПЕРВОГО ЛИЦА', v_third: 'ВИД ОТ ТРЕТЬЕГО ЛИЦА',
     helpTitle: 'ЛУННАЯ МИССИЯ',
     help: ['W / S — идти или ехать вперёд / назад', 'A / D — поворот влево / вправо',
       'Пробел — прыжок · Shift — бег · B — тормоз', 'E — действие (ровер, камни, лаборатория)',
       'C — вид от 3-го / 1-го лица', 'Перетаскивайте мышь — осмотр · Колесо — масштаб', 'Esc — пауза'],
-    helpGoal: 'Езжайте к светящимся кратерам, собирайте образцы породы, грузите их в ровер и сдайте 12 образцов в лабораторию. Снаружи солнечная радиация вредит здоровью, а кислород и энергия убывают — для восстановления возвращайтесь в лабораторию.',
+    helpGoal: 'Езжайте к светящимся кратерам, собирайте образцы породы, грузите их в ровер и сдайте 12 образцов в лабораторию. Снаружи солнечная радиация вредит здоровью, а кислород и энергия убывают — для восстановления возвращайтесь в лабораторию. Камни повреждают ровер — чините его в лаборатории.',
     begin: 'НАЧАТЬ МИССИЮ', loading: 'Создаём Луну…',
     paused: 'ПАУЗА', resume: 'ПРОДОЛЖИТЬ', quit: 'К УРОВНЯМ',
     winT: 'Открытие совершено!', winD: '{d} Вы доставили образцов: {n}, время: {t}.',
@@ -449,6 +455,7 @@ class Sfx {
     o.connect(gn); gn.connect(this.master); o.start(t); o.stop(t + d + 0.02);
   }
   chime() { this.beep(660, 0.15, 'triangle'); this.beep(880, 0.2, 'triangle', 0.25, 0.1); this.beep(1320, 0.3, 'triangle', 0.2, 0.2); }
+  crash() { this.beep(70, 0.28, 'square', 0.3); this.beep(140, 0.2, 'sawtooth', 0.22, 0.02); this.beep(900, 0.08, 'square', 0.1, 0.01); }
   pick() { this.beep(520, 0.1, 'square', 0.12); this.beep(780, 0.14, 'square', 0.12, 0.08); }
   alarm() { this.beep(440, 0.18, 'sawtooth', 0.18); this.beep(330, 0.18, 'sawtooth', 0.18, 0.2); }
   resume() { if (this.ok && this.ctx.state === 'suspended') this.ctx.resume(); }
@@ -483,7 +490,7 @@ const CSS = `
 .mg-tgt{position:absolute;right:18px;top:274px;width:208px;padding:10px 14px;display:flex;align-items:center;gap:12px;font-size:12.5px}
 .mg-arrow{width:30px;height:30px;flex:0 0 30px}
 .mg-tgt b{display:block;font-size:13.5px}.mg-tgt span{color:#8ea4c2}
-.mg-inv{position:absolute;left:18px;top:214px;padding:10px 16px;font-size:12.5px;line-height:1.7;width:250px}
+.mg-inv{position:absolute;left:18px;top:256px;padding:10px 16px;font-size:12.5px;line-height:1.7;width:250px}
 .mg-inv b{color:#7fe3ff;float:right;font-variant-numeric:tabular-nums}
 .mg-prompt{position:absolute;left:50%;bottom:90px;transform:translateX(-50%);padding:12px 22px;font-size:15px;font-weight:600;letter-spacing:.03em;display:none;white-space:nowrap}
 .mg-prompt kbd{display:inline-block;padding:1px 8px;margin:0 2px;border-radius:6px;background:#7fe3ff;color:#06121f;font-weight:800}
@@ -536,7 +543,7 @@ function createGame(opts) {
   const canvas = el('canvas', 'mg-canvas'); root.appendChild(canvas);
   const vig = el('div', 'mg-vig'), hurt = el('div', 'mg-hurt'); root.append(vig, hurt);
   const stats = el('div', 'mg-stats mg-glass'); root.appendChild(stats);
-  const BARS = [['health', '#6ee7a0'], ['oxygen', '#7fe3ff'], ['energy', '#ffb54d'], ['radiation', '#ff6f6f']];
+  const BARS = [['health', '#6ee7a0'], ['oxygen', '#7fe3ff'], ['energy', '#ffb54d'], ['rover', '#b69cff'], ['radiation', '#ff6f6f']];
   const bar = {};
   BARS.forEach(([k, c]) => {
     const r = el('div', 'mg-row'); r.style.setProperty('--c', c);
@@ -647,6 +654,21 @@ function createGame(opts) {
   const chunks = new Map();
   let queue = [];
   function chunkKey(cx, cz) { return cx + ',' + cz; }
+  // deterministic stone layout per chunk (used both for drawing and for rover collisions)
+  const rockCache = new Map();
+  function chunkRocks(cx, cz) {
+    const key = chunkKey(cx, cz); let a = rockCache.get(key); if (a) return a;
+    a = [];
+    for (let k = 0; k < 34; k++) {
+      const lx = hash(cx * 97 + k, cz, 51) * CS, lz = hash(cx * 97 + k, cz, 52) * CS, wx = cx * CS + lx, wz = cz * CS + lz;
+      if (Math.hypot(wx, wz) < 70) continue;
+      const big = hash(cx * 97 + k, cz, 53), sc = big > 0.93 ? 1.8 + big * 2 : 0.25 + big * 0.9;
+      const sx = sc * (0.8 + hash(k, cx, 57)), sz = sc * (0.8 + hash(k, cz, 58));
+      a.push({ lx, lz, wx, wz, y: heightAt(wx, wz) + sc * 0.15, s: sc, sx, sy: sc * 0.8, sz,
+        rx: hash(k, cx, 54) * 6, ry: hash(k, cz, 55) * 6, rz: hash(cz, k, 56) * 6, r: 0.75 * (sx + sz) / 2, top: sc * 0.77 });
+    }
+    rockCache.set(key, a); return a;
+  }
   function makeChunk(cx, cz, lod) {
     const geo = buildTerrainGeometry(cx, cz, lod === 0 ? 48 : 12);
     const m = new THREE.Mesh(geo, terrainMat);
@@ -655,13 +677,8 @@ function createGame(opts) {
     if (lod === 0) {
       const cnt = 34; rocksMesh = new THREE.InstancedMesh(rockGeo, M.rock, cnt);
       const o = new THREE.Object3D(); let used = 0;
-      for (let k = 0; k < cnt; k++) {
-        const lx = hash(cx * 97 + k, cz, 51) * CS, lz = hash(cx * 97 + k, cz, 52) * CS, wx = cx * CS + lx, wz = cz * CS + lz;
-        if (Math.hypot(wx, wz) < 70) continue;
-        const big = hash(cx * 97 + k, cz, 53), s = big > 0.93 ? 1.8 + big * 2 : 0.25 + big * 0.9;
-        o.position.set(lx, heightAt(wx, wz) + s * 0.15, lz);
-        o.rotation.set(hash(k, cx, 54) * 6, hash(k, cz, 55) * 6, hash(cz, k, 56) * 6);
-        o.scale.set(s * (0.8 + hash(k, cx, 57)), s * 0.8, s * (0.8 + hash(k, cz, 58)));
+      for (const r of chunkRocks(cx, cz)) {
+        o.position.set(r.lx, r.y, r.lz); o.rotation.set(r.rx, r.ry, r.rz); o.scale.set(r.sx, r.sy, r.sz);
         o.updateMatrix(); rocksMesh.setMatrixAt(used++, o.matrix);
       }
       rocksMesh.count = used; rocksMesh.castShadow = true; rocksMesh.receiveShadow = true; rocksMesh.frustumCulled = false;
@@ -681,6 +698,7 @@ function createGame(opts) {
       want.set(chunkKey(pcx + dx, pcz + dz), { cx: pcx + dx, cz: pcz + dz, lod: ring <= NEAR ? 0 : 1, d: dx * dx + dz * dz });
     }
     for (const [k, c] of chunks) if (!want.has(k)) { removeChunk(c); chunks.delete(k); }
+    for (const k of rockCache.keys()) if (!want.has(k)) rockCache.delete(k);
     queue = [];
     for (const [k, w] of want) { const c = chunks.get(k); if (!c || c.lod !== w.lod) queue.push({ k, w }); }
     queue.sort((a, b) => a.w.d - b.w.d);
@@ -701,16 +719,16 @@ function createGame(opts) {
   // ---------- dust puffs (jump / landing)
   const dustGeo = new THREE.IcosahedronGeometry(0.5, 0);
   const dust = [];
-  for (let i = 0; i < 28; i++) {
+  for (let i = 0; i < 48; i++) {
     const m = new THREE.Mesh(dustGeo, new THREE.MeshBasicMaterial({ color: 0xb9aca2, transparent: true, opacity: 0, depthWrite: false, fog: true }));
     m.visible = false; scene.add(m); dust.push({ m, t: 0, life: 1, vx: 0, vy: 0, vz: 0, s: 1 });
   }
   let dustI = 0;
-  function puff(x, y, z, n, power) {
+  function puff(x, y, z, n, power, color, rise) {
     for (let i = 0; i < n; i++) {
       const d = dust[dustI++ % dust.length], a = Math.random() * Math.PI * 2, sp = (0.5 + Math.random()) * power;
-      d.t = 0; d.life = 0.7 + Math.random() * 0.5; d.s = 0.35 + Math.random() * 0.4;
-      d.vx = Math.cos(a) * sp; d.vz = Math.sin(a) * sp; d.vy = 0.4 + Math.random() * 0.9 * power * 0.4;
+      d.t = 0; d.life = 0.7 + Math.random() * 0.5; d.s = 0.35 + Math.random() * 0.4; d.m.material.color.setHex(color || 0xb9aca2);
+      d.vx = Math.cos(a) * sp; d.vz = Math.sin(a) * sp; d.vy = (rise || 0) + 0.4 + Math.random() * 0.9 * power * 0.4;
       d.m.position.set(x + Math.cos(a) * 0.4, y + 0.1, z + Math.sin(a) * 0.4); d.m.visible = true;
     }
   }
@@ -727,7 +745,7 @@ function createGame(opts) {
     paused: true, over: false, t: 0, mode: 'foot',
     foot: { x: DOOR.x, z: DOOR.z + 5, yaw: 0, speed: 0, phase: 0, y: 0, h: 0, vh: 0, air: false, landT: 0 },
     car: { x: 24, z: 40, yaw: 0.5, v: 0, steer: 0, y: 0, pitch: 0, roll: 0, h: 0, vh: 0, air: false },
-    hp: 100, o2: 100, en: 100, rad: 0, carried: 0, cargo: 0, delivered: 0,
+    hp: 100, o2: 100, en: 100, rv: 100, hitT: 0, hitUntil: 0, lastDmg: 0, shake: 0, smokeT: 0, rad: 0, carried: 0, cargo: 0, delivered: 0,
     action: null, flare: { next: 70, warn: false, on: false, t: 0 }, shade: false, shadeT: 0, hurtT: 0,
     view: 'third', viewUntil: 0,
     cam: { yaw: 0, yawOff: 0, pitchOff: 0, fpPitch: 0, zoom: 1, idle: 0, x: 0, y: 3, z: -8 },
@@ -800,6 +818,34 @@ function createGame(opts) {
     S.cam.yawOff = 0; S.cam.fpPitch = 0; S.cam.idle = 0;
     viewTag.textContent = tr(fp ? 'v_first' : 'v_third'); S.viewUntil = performance.now() + 1700;
     sfx.beep(fp ? 700 : 520, 0.07, 'sine', 0.08);
+  }
+
+  // ---------- stones: the rover takes damage when it hits them
+  function collideRover(dt) {
+    const c = S.car; S.hitT -= dt;
+    if (Math.hypot(c.x, c.z) < 80) return;
+    const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw), ccx = Math.floor(c.x / CS), ccz = Math.floor(c.z / CS);
+    for (const off of [1.6, -1.6]) {
+      const px = c.x + fx * off, pz = c.z + fz * off;
+      for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) for (const r of chunkRocks(ccx + dx, ccz + dz)) {
+        if (r.s < 0.6) continue;                              // pebbles are harmless
+        const ddx = px - r.wx, ddz = pz - r.wz;
+        if (Math.abs(ddx) > 7 || Math.abs(ddz) > 7) continue;
+        if (c.h + 0.35 > r.top) continue;                      // hopped over it
+        const rad = 1.75 + r.r, d2 = ddx * ddx + ddz * ddz;
+        if (d2 >= rad * rad) continue;
+        const d = Math.sqrt(d2) || 0.01, nx = ddx / d, nz = ddz / d, pen = rad - d;
+        c.x += nx * pen; c.z += nz * pen;
+        const into = Math.max(0, -(c.v * (fx * nx + fz * nz))), frac = into / (Math.abs(c.v) + 0.001);
+        if (into > 2.5 && S.hitT <= 0) {
+          const dmg = Math.max(1, Math.min(45, (into - 2) * 0.9 * (0.8 + r.top * 0.5)));
+          S.rv = Math.max(0, S.rv - dmg); S.lastDmg = Math.round(dmg); S.hitUntil = performance.now() + 2200; S.hitT = 0.6;
+          S.shake = Math.min(1.6, 0.4 + dmg / 14); S.hurtT = Math.max(S.hurtT, 0.12);
+          sfx.crash(); puff(px - nx * 0.5, c.y + c.h + 0.8, pz - nz * 0.5, 10, 2.6);
+          c.v *= 1 - 1.2 * frac;                              // bounce back off the stone
+        } else c.v *= 1 - 0.5 * frac;
+      }
+    }
   }
 
   // ---------- jumping
@@ -923,7 +969,8 @@ function createGame(opts) {
       f.phase += Math.abs(f.speed) * dt * (f.air ? 0.3 : 1.7);
     } else {
       // rover physics
-      const empty = S.en <= 0, vmax = (empty ? 6 : 34) * stageSpeed;
+      const empty = S.en <= 0, hf = S.rv >= 50 ? 1 : 0.4 + 0.6 * (S.rv / 50);
+      let vmax = (empty ? 6 : 34) * stageSpeed * hf; if (S.rv <= 0) vmax = Math.min(vmax, 3);
       const fwdDir = { x: Math.sin(c.yaw), z: Math.cos(c.yaw) };
       const ahead = heightAt(c.x + fwdDir.x * 3, c.z + fwdDir.z * 3) - heightAt(c.x - fwdDir.x * 3, c.z - fwdDir.z * 3);
       const slope = ahead / 6;
@@ -943,6 +990,7 @@ function createGame(opts) {
       c.yaw += (c.v * Math.tan(c.steer) / 4.6) * dt * (c.air ? 0.35 : 1);
       c.x = clamp(c.x + Math.sin(c.yaw) * c.v * dt, -WORLD, WORLD);
       c.z = clamp(c.z + Math.cos(c.yaw) * c.v * dt, -WORLD, WORLD);
+      collideRover(dt);
       if (c.air) {
         c.h += c.vh * dt; c.vh -= JUMP_G_CAR * dt;
         if (c.h <= 0 && c.vh < 0) { const hard = land(c, true); c.v *= 1 - 0.12 * hard; if (hard > 0.7) S.en = Math.max(0, S.en - 0.6); }
@@ -964,6 +1012,19 @@ function createGame(opts) {
     if (!fl.on && fl.next < 6 && fl.next > 0) { if (!fl.warn) sfx.alarm(); fl.warn = true; }
     if (!fl.on && fl.next <= 0) { fl.on = true; fl.t = 20; fl.warn = false; sfx.alarm(); }
     if (fl.on) { fl.t -= dt; if (fl.t <= 0) { fl.on = false; fl.next = 80 + Math.random() * 70; } }
+
+    // ---- rover: repair at the lab, smoke when badly damaged
+    const carInLab = Math.hypot(c.x, c.z) < LAB_RADIUS;
+    if (carInLab && S.rv < 100) S.rv = Math.min(100, S.rv + 5 * dt);
+    S.shake = Math.max(0, S.shake - 2.2 * dt);
+    if (S.rv < 35) {
+      S.smokeT -= dt;
+      if (S.smokeT <= 0) {
+        S.smokeT = 0.1 + (S.rv / 35) * 0.3;
+        const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
+        puff(c.x + fx * 2.0, c.y + c.h + 2.0, c.z + fz * 2.0, 1, 0.4, S.rv <= 0 ? 0x151515 : 0x3a3a3a, 1.6);
+      }
+    }
 
     // ---- vitals
     let radRate = 0;
@@ -1063,6 +1124,7 @@ function createGame(opts) {
       camera.position.set(ex, ey, ez);
       camera.lookAt(ex + Math.sin(yaw) * cp, ey + Math.sin(p), ez + Math.cos(yaw) * cp);
       cam.x = ex; cam.y = ey; cam.z = ez; cam.yaw = yaw;
+      if (S.shake > 0.01) { camera.position.x += (Math.random() - 0.5) * S.shake * 0.35; camera.position.y += (Math.random() - 0.5) * S.shake * 0.35; }
       const tx = s.x, ty = s.y + 1.5, tz = s.z;
       sunLight.position.set(tx + SUN.x * 220, ty + SUN.y * 220, tz + SUN.z * 220);
       sunLight.target.position.set(tx, ty, tz); sunLight.target.updateMatrixWorld();
@@ -1083,6 +1145,7 @@ function createGame(opts) {
     cam.x = lerp(cam.x, cx, k); cam.y = lerp(cam.y, cy, k); cam.z = lerp(cam.z, cz, k);
     camera.position.set(cam.x, cam.y, cam.z);
     camera.lookAt(tx + Math.sin(cam.yaw) * 2, ty + 0.3, tz + Math.cos(cam.yaw) * 2);
+    if (S.shake > 0.01) camera.position.set(cam.x + (Math.random() - 0.5) * S.shake * 0.5, cam.y + (Math.random() - 0.5) * S.shake * 0.5, cam.z + (Math.random() - 0.5) * S.shake * 0.4);
     // light & sky follow
     sunLight.position.set(tx + SUN.x * 220, ty + SUN.y * 220, tz + SUN.z * 220);
     sunLight.target.position.set(tx, ty, tz); sunLight.target.updateMatrixWorld();
@@ -1148,8 +1211,9 @@ function createGame(opts) {
     mctx.restore();
     mctx.fillStyle = '#eef4ff'; mctx.font = 'bold 18px sans-serif'; mctx.textAlign = 'center'; mctx.fillText('N', cx, 20);
   }
+  const carInLabNow = () => Math.hypot(S.car.x, S.car.z) < LAB_RADIUS;
   function updateHud() {
-    const vals = { health: S.hp, oxygen: S.o2, energy: S.en, radiation: S.rad };
+    const vals = { health: S.hp, oxygen: S.o2, energy: S.en, rover: S.rv, radiation: S.rad };
     BARS.forEach(([k]) => {
       const v = vals[k], b = bar[k];
       b.f.style.width = v + '%';
@@ -1177,14 +1241,17 @@ function createGame(opts) {
     let w = '', red = false;
     const fl = S.flare;
     if (fl.on) { w = tr('w_flare'); red = true; }
+    else if (performance.now() < S.hitUntil) { w = tr('w_hit', { d: S.lastDmg }); red = true; }
     else if (fl.warn) w = tr('w_flareSoon', { s: Math.max(1, Math.ceil(fl.next)) });
     else if (S.o2 < 20 && !S.inLab) { w = tr('w_o2'); red = true; }
     else if (S.en <= 0 && S.mode === 'car') { w = tr('w_en'); red = true; }
     else if (S.rad >= 55 && !S.inLab) { w = tr('w_rad'); red = true; }
+    else if (S.rv < 25 && S.mode === 'car' && !carInLabNow()) { w = tr(S.rv <= 0 ? 'w_rv0' : 'w_rv1'); red = true; }
     else if (Math.max(Math.abs(s.x), Math.abs(s.z)) > WORLD - 250) { w = tr('w_edge'); }
     warn.style.display = w ? 'block' : 'none'; warn.textContent = w; warn.classList.toggle('red', red);
     const refilling = S.inLab && (S.hp < 99.5 || S.o2 < 99.5 || S.en < 99.5) && !w;
-    msg.style.display = refilling ? 'block' : 'none'; msg.textContent = tr('m_refill');
+    const repairing = !refilling && carInLabNow() && S.rv < 99.5 && !w;
+    msg.style.display = refilling || repairing ? 'block' : 'none'; msg.textContent = tr(refilling ? 'm_refill' : 'm_repair');
     viewTag.style.opacity = performance.now() < S.viewUntil ? 1 : 0;
     vig.style.opacity = fl.on ? (0.55 + 0.25 * Math.sin(S.t * 6)) : 0;
     S.hurtT = Math.max(0, S.hurtT - 0.016); hurt.style.opacity = S.hurtT > 0 ? Math.min(1, S.hurtT * 3) : 0;
