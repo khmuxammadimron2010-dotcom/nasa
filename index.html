@@ -149,7 +149,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 .progress span{display:block;height:100%;width:var(--w,0%);border-radius:99px;background:linear-gradient(90deg,var(--accent-2),var(--accent));transition:width .4s var(--ease)}
 
 .levels-body{padding:24px 26px 28px;overflow-y:auto}
-.levels-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:18px}
+.levels-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));grid-auto-rows:1fr;gap:18px}
 
 .level-card{
   position:relative;display:flex;flex-direction:column;overflow:hidden;
@@ -165,7 +165,8 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 .level-card.unlocked:hover{border-color:rgba(183,206,206,.35);box-shadow:0 18px 40px rgba(35,24,28,.45)}
 .level-card.locked{background:linear-gradient(160deg,rgba(52,47,52,.7),rgba(33,22,26,.88));border-color:rgba(255,255,255,.06)}
 .level-card.locked .card-content{opacity:.5;filter:saturate(.35)}
-.card-wrap{animation:rise .5s var(--ease) both}
+.card-wrap{animation:rise .5s var(--ease) both;display:flex;min-width:0}
+.card-wrap>.level-card{flex:1;width:100%}
 .level-card:hover{transform:translateY(-6px)}
 
 .card-content{flex:1}
