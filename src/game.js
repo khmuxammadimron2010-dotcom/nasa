@@ -57,7 +57,19 @@ function labContact(px, pz, rad) {
     const c = rr <= mid ? { nx: -px / (rr || 1), nz: -pz / (rr || 1), pen: rr + rad - DOME_IN } : { nx: px / rr, nz: pz / rr, pen: DOME_OUT + rad - rr };
     if (c.pen > 0) best = c;
   }
+  if (SHELTER.on) {                          // storm shelter: hollow ring with a doorway at +z, plus the two valves
+    if (rr > SHELTER.rIn - rad && rr < SHELTER.rOut + rad && !(pz > 0 && Math.abs(px) <= SHELTER.door - rad)) {
+      const mid = (SHELTER.rIn + SHELTER.rOut) / 2;
+      const c = rr <= mid ? { nx: -px / (rr || 1), nz: -pz / (rr || 1), pen: rr + rad - SHELTER.rIn } : { nx: px / rr, nz: pz / rr, pen: SHELTER.rOut + rad - rr };
+      if (c.pen > 0 && (!best || c.pen > best.pen)) best = c;
+    }
+    for (const v of VALVES) {
+      const dx = px - v.x, dz = pz - v.z, d = Math.hypot(dx, dz), pen = 0.3 + rad - d;
+      if (pen > 0 && (!best || pen > best.pen)) best = d > 1e-4 ? { nx: dx / d, nz: dz / d, pen } : { nx: 1, nz: 0, pen };
+    }
+  }
   for (const [cx, cz, r] of LAB_CIRCLES) {
+    if (SHELTER.on && cx === 0 && cz === 0) continue;   // the hologram table is replaced by the shelter
     const dx = px - cx, dz = pz - cz, d = Math.hypot(dx, dz), pen = r + rad - d;
     if (pen > 0 && (!best || pen > best.pen)) best = d > 1e-4 ? { nx: dx / d, nz: dz / d, pen } : { nx: 1, nz: 0, pen };
   }
@@ -79,13 +91,17 @@ const DAY_LEN = 480;           // seconds of play for one full lunar day
 const CLOCK_START = 0.30;      // game starts in the morning
 const SUN_MAX = 62 * Math.PI / 180;
 const T_NIGHT = -173, T_DAY = 121;   // surface temperature extremes (°C)
+// ---- mission "Solar Radiation Storm"
+const SHELTER = { on: false, rIn: 2.05, rOut: 2.75, door: 1.0 };
+const VALVES = [{ x: 3.7, z: -0.6 }, { x: -3.7, z: -0.6 }];
+const STORM_WARN = 45, VALVE_TIME = 5, STORM_SAFE = 6;
 // ---- real Moon map (NASA LRO mosaic, equirectangular, centred on 0° longitude)
 const MAP_SITES = [
   { key: 'site1', lat: 20.19, lon: 30.77, level: 1 },        // Taurus–Littrow, Apollo 17
   { key: 'site2', lat: -89.67, lon: 129.78, level: 2, lb: 'up' },      // Shackleton crater
   { apollo: 11, y: 1969, lat: 0.67, lon: 23.47 }, { apollo: 12, y: 1969, lat: -3.01, lon: -23.42, lb: 'left' },
   { apollo: 14, y: 1971, lat: -3.65, lon: -17.47 }, { apollo: 15, y: 1971, lat: 26.13, lon: 3.63 },
-  { apollo: 16, y: 1972, lat: -8.97, lon: 15.5 }
+  { key: 'site3', lat: -8.97, lon: 15.5, level: 3 }           // Descartes Highlands, Apollo 16
 ];
 // ---- mission "The Deadly Shadow"
 const SHADOW = { on: false, x: -250, z: 215, R: 88, D: 42 };
@@ -139,8 +155,9 @@ const T = {
     kidTitle: 'Mission briefing for young astronauts', kidTitleM: 'Mission briefing: The Deadly Shadow', readAloud: '🔊 Read aloud', stopRead: '⏹ Stop reading', controls: 'Controls',
     kidMoon: ['Welcome, young astronaut! Our Moon base is running out of air to breathe.', 'There is no air on the Moon. Your space suit carries a small tank of oxygen, and the base has one big oxygen tank.', 'Here is the secret: Moon rocks are almost half oxygen! It is locked inside the stone, and the oxygen maker in the base can pull it out.', 'Your job: collect the glowing rocks, bring them back, and put them into the oxygen maker. Fill the base tank to 100 percent.', 'Watch the Oxygen bar. The timer shows how long your air will last, and the white line shows how much air you need to get home. Always turn back before your oxygen reaches the line!', 'Running makes you breathe faster and uses more oxygen. The rover is fast, so driving uses less air on every trip.', 'At the base, the lab refills your suit from the big tank. Every refill uses base oxygen, so do not waste it.', 'Walk with W, A, S and D, jump with Space, and press E to pick up rocks and to get into the rover.', 'Ready? Press the Begin button. Good luck!'],
     kidShadow: ['Welcome, young astronaut! A radio tower is broken inside a deep, dark crater.', 'In the sunshine, your space suit gets very hot. But in the crater\'s shadow it is minus 173 degrees! Your energy and health freeze fast.', 'Here is a secret. On Earth, the air works like a blanket and keeps the heat. The Moon has no air, so the sun is boiling and the shade is freezing.', 'Your plan: drive the rover to the crater. Walk to each glowing spot on the sunny edge and press E to put up a giant mirror. You have three mirrors.', 'The mirrors bounce sunlight into the dark crater and make a warm, bright spot around the tower.', 'Now climb down, stand in the warm light, and press E at the tower to start repairing it. If you walk away, the repair pauses, so you can warm up and come back.', 'Walk with W, A, S and D, jump with Space, and press E to use things. Press C to change the camera.', 'Ready? Press the Begin button. Good luck!'],
-    tank: 'Base O₂ tank', o2home: 'Way home needs ~{n}%', obj_fill: 'Base oxygen tank: {n}%', maker: 'Oxygen maker', heating: '{n} rocks heating', idle: 'ready', rocks: 'Rocks delivered', obj_home: 'Go back and refill your oxygen', w_turn: 'TURN BACK NOW! You have {a}% oxygen — the way home needs about {b}%.', w_soon: 'Head home soon — your oxygen is close to the white line.', w_tank0: 'The base tank is EMPTY — the lab cannot refill your suit! The backup makes air very slowly. Bring rocks!', w_tankLow: 'The base tank is almost empty — bring rocks soon!', f_oxy: '+{o}% base oxygen · +${m}', f_newRocks: 'New glowing rocks were found at the craters!', tip_out: 'You are outside now. Your suit uses oxygen — watch the timer next to Oxygen.', tip_run: 'Running makes you breathe faster: oxygen goes down almost twice as fast.', tip_rover: 'The rover is fast, so every trip uses less oxygen. Drive to save air!', tip_half: 'Half your oxygen is gone. Keep the Oxygen bar above the white line — that is what you need to get home.', tip_rock: 'This dark lava rock is almost half oxygen, locked inside its minerals!', tip_maker: 'The oxygen maker heats the rocks and pulls the oxygen out. Watch the base tank fill up!', tip_refill: 'The lab is refilling your suit from the base tank. Every refill uses base oxygen.', winT1: 'The base can breathe again!', winD1: 'You made enough oxygen from Moon rocks to fill the base tank ({n} rocks, time {t}). Moon rocks are about 40–45% oxygen by weight — it is locked inside minerals like ilmenite that formed in ancient lava. Future astronauts plan to make air to breathe and rocket fuel this way.',
-    map_title: 'MOON MAP', map_sub: 'Real photo map of the whole Moon from NASA’s Lunar Reconnaissance Orbiter', map_btn: 'MAP', map_close: 'CLOSE', map_credit: 'Map: NASA / GSFC / Arizona State University (LRO camera mosaic) · Press M or Esc to close', map_here: 'YOU ARE HERE', map_lvl: 'Level {n}', map_near: 'Near side (faces Earth)', map_far: 'Far side', map_hint: 'Tap a marker to learn about the place.', site1_name: 'Taurus–Littrow valley (Apollo 17)', site1_info: 'Ancient lava flooded this valley. In 1972 the Apollo 17 astronauts found orange glass beads here, made by volcanic “fire fountains”. The dark lava rock is rich in ilmenite — a mineral that oxygen can be pulled out of. That is why our oxygen base is here.', site2_name: 'Shackleton crater, south pole', site2_info: 'About 21 km wide and more than 4 km deep. At the pole the Sun always stays very low, so the crater floor has been in shadow for billions of years and is one of the coldest places we know — far below −173 °C.', apollo_info: 'Apollo {n} landed here in {y}.', help_map: 'M — Moon map (where you are on the real Moon)',
+    tank: 'Base oxygen tank', o2home: 'Way home needs ~{n}%', obj_fill: 'Base oxygen tank: {n}%', maker: 'Oxygen maker', heating: '{n} rocks heating', idle: 'ready', rocks: 'Rocks delivered', obj_home: 'Go back and refill your oxygen', w_turn: 'TURN BACK NOW! You have {a}% oxygen — the way home needs about {b}%.', w_soon: 'Head home soon — your oxygen is close to the white line.', w_tank0: 'The base tank is EMPTY — the lab cannot refill your suit! The backup makes air very slowly. Bring rocks!', w_tankLow: 'The base tank is almost empty — bring rocks soon!', f_oxy: '+{o}% base oxygen · +${m}', f_newRocks: 'New glowing rocks were found at the craters!', tip_out: 'You are outside now. Your suit uses oxygen — watch the timer next to Oxygen.', tip_run: 'Running makes you breathe faster: oxygen goes down almost twice as fast.', tip_rover: 'The rover is fast, so every trip uses less oxygen. Drive to save air!', tip_half: 'Half your oxygen is gone. Keep the Oxygen bar above the white line — that is what you need to get home.', tip_rock: 'This dark lava rock is almost half oxygen, locked inside its minerals!', tip_maker: 'The oxygen maker heats the rocks and pulls the oxygen out. Watch the base tank fill up!', tip_refill: 'The lab is refilling your suit from the base tank. Every refill uses base oxygen.', winT1: 'The base can breathe again!', winD1: 'You made enough oxygen from Moon rocks to fill the base tank ({n} rocks, time {t}). Moon rocks are about 40–45% oxygen by weight — it is locked inside minerals that formed in ancient lava. Future astronauts plan to make air to breathe and rocket fuel this way.',
+    map_title: 'MOON MAP', map_sub: 'Real photo map of the whole Moon, taken by a NASA spacecraft that flies around the Moon', map_btn: 'MAP', map_close: 'CLOSE', map_credit: 'Map: NASA Goddard Space Flight Center / Arizona State University · Press M or Esc to close', map_here: 'YOU ARE HERE', map_lvl: 'Level {n}', map_near: 'Near side (faces Earth)', map_far: 'Far side', map_hint: 'Tap a marker to learn about the place.', site1_name: 'Taurus–Littrow valley (Apollo 17)', site1_info: 'Ancient lava flooded this valley. In 1972 the Apollo 17 astronauts found orange glass beads here, made by volcanic “fire fountains”. The dark lava rock here is full of a mineral that oxygen can be pulled out of. That is why our oxygen base is here.', site2_name: 'Shackleton crater, south pole', site2_info: 'About 21 km wide and more than 4 km deep. At the pole the Sun always stays very low, so the crater floor has been in shadow for billions of years and is one of the coldest places we know — far below −173 °C.', apollo_info: 'Apollo {n} landed here in {y}.', help_map: 'M — Moon map (where you are on the real Moon)',
+    kidTitleS: 'Mission briefing: Solar Radiation Storm', kidStorm: ['Welcome, young astronaut! You are outside, near the Moon base.', 'Soon the Sun will blast out a solar storm. A red warning will appear with a 45-second timer.', 'Spacesuits and thin walls cannot stop a solar storm! If it catches you outside, the screen fills with static, the radiation counter clicks loudly, and your health drops fast.', 'Run into the base! Hold Shift to run. In the middle of the base is the round Storm Shelter.', 'The shelter has hollow walls. Go to the two water valves and hold E for 5 seconds on each one to pump water into the walls.', 'Here is the science: water stops radiation better than metal! Water is full of hydrogen, which soaks up the storm\'s tiny particles.', 'When both walls are full, step inside the shelter. You are safe, and your health comes back.', 'Ready? Press the Begin button. Good luck!'], st_warnT: 'SOLAR STORM INCOMING', st_hitT: 'SOLAR STORM! RADIATION HIGH', st_msg: 'Spacesuits and thin walls cannot stop a Solar Storm! Get to the Storm Shelter!', st_hitSay: 'The solar storm is here! Get into the shelter and fill its walls with water!', st_safe: 'The water walls are blocking the radiation. Stay inside!', obj_survey: 'Look around near the base', sobj_run: 'Run into the base — to the Storm Shelter!', sobj_valve: 'Hold E on water valve {n} to fill the shelter wall', sobj_enter: 'Step inside the Storm Shelter', sobj_wait: 'You are safe. Stay inside — the storm is coming', sobj_ok: 'Shielded! Stay inside — your health is coming back', walls: 'Shelter walls', tgt_shelter: 'Shelter', tgt_valve: 'Valve {n}', p_valve: 'Hold E — pump water into wall {n} ({p}%)', a_valve: 'Pumping water into wall {n}…', st_wallFull: 'Wall {n} is full of water!', storm_in: 'Storm in', lose_storm: 'The solar storm’s radiation was too strong. Next time, run to the shelter and fill its walls with water right away.', swinT: 'You survived the solar storm!', swinD: 'The water walls blocked the radiation and kept you safe (time {t}). Water is full of hydrogen, which stops a storm’s tiny particles better than metal — metal can even make extra radiation when the particles hit it. That is why scientists want to use water and Moon soil to shield future Moon bases.', site3_name: 'Descartes Highlands (Apollo 16)', site3_info: 'Apollo 16 astronauts explored here in April 1972. Only four months later, in August 1972, one of the strongest solar storms of the space age hit the Moon. Anyone standing here would have needed a storm shelter.',
     clock: 'Lunar time', t_out: 'Outside', t_suit: 'Suit', ph_day: 'Day', ph_night: 'Night', ph_dawn: 'Sunrise', ph_dusk: 'Sunset',
     w_cold: 'SUIT FREEZING — get into sunlight or the mirror beam!', w_hot: 'SUIT OVERHEATING — get into shade or the rover!',
     w_dark: 'Crater shadow: no air to hold heat — it is −173 °C! Place mirrors on the rim.',
@@ -191,8 +208,9 @@ const T = {
     kidTitle: 'Yosh kosmonavtlar uchun missiya tushuntirishi', kidTitleM: 'Missiya tushuntirishi: O‘limli soya', readAloud: '🔊 Ovoz chiqarib o‘qish', stopRead: '⏹ To‘xtatish', controls: 'Boshqaruv',
     kidMoon: ['Xush kelibsiz, yosh kosmonavt! Oydagi bazamizda nafas olish uchun havo tugab bormoqda.', 'Oyda havo yo‘q. Kostyumingizda kichik kislorod idishi bor, bazada esa bitta katta kislorod baki bor.', 'Mana sir: Oy toshlarining deyarli yarmi kislorod! U tosh ichiga qamalgan, bazadagi kislorod mashinasi esa uni ajratib oladi.', 'Vazifangiz: yonib turgan toshlarni yig‘ing, olib keling va kislorod mashinasiga soling. Baza bakini 100 foizgacha to‘ldiring.', 'Kislorod ko‘rsatkichini kuzating. Taymer havo qancha vaqtga yetishini, oq chiziq esa uyga qaytish uchun qancha havo kerakligini ko‘rsatadi. Kislorod chiziqqa yetmasdan har doim orqaga qayting!', 'Yugurganda tezroq nafas olasiz va ko‘proq kislorod sarflaysiz. Rover tez yuradi, shuning uchun har bir safarda kamroq havo ketadi.', 'Bazada laboratoriya kostyumingizni katta bakdan to‘ldiradi. Har bir to‘ldirish baza kislorodini sarflaydi, shuning uchun uni isrof qilmang.', 'W, A, S, D bilan yuring, Probel bilan sakrang, tosh olish va roverga o‘tirish uchun E ni bosing.', 'Tayyormisiz? Boshlash tugmasini bosing. Omad!'],
     kidShadow: ['Xush kelibsiz, yosh kosmonavt! Chuqur va qorong‘i krater ichida aloqa minorasi sindi.', 'Quyosh nurida kostyumingiz juda qiziydi. Krater soyasida esa minus 173 daraja! Energiya va salomatlik tez muzlaydi.', 'Mana bir sir. Yerda havo ko‘rpa kabi issiqlikni ushlab turadi. Oyda havo yo‘q, shuning uchun quyoshda qaynaydi, soyada muzlaydi.', 'Rejangiz: roverda kraterga boring. Quyoshli qirg‘oqdagi har bir yonib turgan joyga borib, E ni bosing va ulkan oyna o‘rnating. Sizda uchta oyna bor.', 'Oynalar quyosh nurini qorong‘i kraterga qaytaradi va minora atrofida iliq, yorug‘ joy hosil qiladi.', 'Endi pastga tushing, iliq nurda turing va minora yonida E ni bosib, ta’mirlashni boshlang. Uzoqlashsangiz, ta’mir to‘xtab turadi, isinib qaytishingiz mumkin.', 'W, A, S, D bilan yuring, Probel bilan sakrang, E bilan harakat qiling. C tugmasi kamerani almashtiradi.', 'Tayyormisiz? Boshlash tugmasini bosing. Omad!'],
-    tank: 'Baza O₂ baki', o2home: 'Uyga qaytishga ~{n}% kerak', obj_fill: 'Baza kislorod baki: {n}%', maker: 'Kislorod mashinasi', heating: '{n} ta tosh qizimoqda', idle: 'tayyor', rocks: 'Topshirilgan toshlar', obj_home: 'Qaytib, kislorodni to‘ldiring', w_turn: 'HOZIROQ ORQAGA QAYTING! Sizda {a}% kislorod bor — uyga yo‘l taxminan {b}% oladi.', w_soon: 'Tez orada uyga qayting — kislorod oq chiziqqa yaqinlashmoqda.', w_tank0: 'Baza baki BO‘SH — laboratoriya kostyumni to‘ldira olmaydi! Zaxira tizim havoni juda sekin qiladi. Tosh olib keling!', w_tankLow: 'Baza baki deyarli bo‘sh — tezroq tosh olib keling!', f_oxy: '+{o}% baza kislorodi · +${m}', f_newRocks: 'Kraterlarda yangi yonib turgan toshlar topildi!', tip_out: 'Endi siz tashqaridasiz. Kostyum kislorod sarflaydi — Kislorod yonidagi taymerni kuzating.', tip_run: 'Yugurganda tez nafas olasiz: kislorod deyarli ikki baravar tez kamayadi.', tip_rover: 'Rover tez yuradi, shuning uchun har bir safarda kamroq kislorod ketadi. Havoni tejash uchun roverda yuring!', tip_half: 'Kislorodning yarmi tugadi. Kislorod chizig‘ini oq chiziqdan yuqorida saqlang — uyga qaytish uchun shuncha kerak.', tip_rock: 'Bu qora lava toshining deyarli yarmi kislorod — u minerallar ichiga qamalgan!', tip_maker: 'Kislorod mashinasi toshlarni qizdirib, ichidan kislorodni ajratib oladi. Baza baki to‘lishini kuzating!', tip_refill: 'Laboratoriya kostyumingizni baza bakidan to‘ldirmoqda. Har bir to‘ldirish baza kislorodini sarflaydi.', winT1: 'Baza yana nafas olmoqda!', winD1: 'Siz Oy toshlaridan baza bakini to‘ldirishga yetarli kislorod oldingiz ({n} ta tosh, vaqt {t}). Oy toshlari og‘irligining taxminan 40–45 foizi kislorod — u qadimgi lavada hosil bo‘lgan ilmenit kabi minerallar ichiga qamalgan. Kelajakda kosmonavtlar shu yo‘l bilan nafas olish uchun havo va raketa yoqilg‘isi olishni rejalashtirmoqda.',
-    map_title: 'OY XARITASI', map_sub: 'NASA Lunar Reconnaissance Orbiter olgan butun Oyning haqiqiy foto xaritasi', map_btn: 'XARITA', map_close: 'YOPISH', map_credit: 'Xarita: NASA / GSFC / Arizona shtat universiteti (LRO kamera mozaikasi) · Yopish uchun M yoki Esc', map_here: 'SIZ SHU YERDASIZ', map_lvl: '{n}-bosqich', map_near: 'Yaqin tomon (Yerga qaragan)', map_far: 'Uzoq tomon', map_hint: 'Joy haqida bilish uchun belgini bosing.', site1_name: 'Taurus–Littrou vodiysi (Apollon 17)', site1_info: 'Bu vodiyni qadimgi lava to‘ldirgan. 1972-yilda Apollon 17 kosmonavtlari bu yerda vulqon “olov favvoralari” hosil qilgan to‘q sariq shisha donachalarni topdilar. Qora lava toshida ilmenit ko‘p — undan kislorod ajratib olish mumkin. Shuning uchun kislorod bazamiz shu yerda.', site2_name: 'Shekklton krateri, janubiy qutb', site2_info: 'Kengligi taxminan 21 km, chuqurligi 4 km dan ortiq. Qutbda Quyosh doim juda past turadi, shuning uchun krater tubi milliardlab yillardan beri soyada va bizga ma’lum eng sovuq joylardan biri — −173 °C dan ham ancha sovuq.', apollo_info: 'Apollon {n} bu yerga {y}-yilda qo‘ndi.', help_map: 'M — Oy xaritasi (haqiqiy Oyda qayerdasiz)',
+    tank: 'Baza kislorod baki', o2home: 'Uyga qaytishga ~{n}% kerak', obj_fill: 'Baza kislorod baki: {n}%', maker: 'Kislorod mashinasi', heating: '{n} ta tosh qizimoqda', idle: 'tayyor', rocks: 'Topshirilgan toshlar', obj_home: 'Qaytib, kislorodni to‘ldiring', w_turn: 'HOZIROQ ORQAGA QAYTING! Sizda {a}% kislorod bor — uyga yo‘l taxminan {b}% oladi.', w_soon: 'Tez orada uyga qayting — kislorod oq chiziqqa yaqinlashmoqda.', w_tank0: 'Baza baki BO‘SH — laboratoriya kostyumni to‘ldira olmaydi! Zaxira tizim havoni juda sekin qiladi. Tosh olib keling!', w_tankLow: 'Baza baki deyarli bo‘sh — tezroq tosh olib keling!', f_oxy: '+{o}% baza kislorodi · +${m}', f_newRocks: 'Kraterlarda yangi yonib turgan toshlar topildi!', tip_out: 'Endi siz tashqaridasiz. Kostyum kislorod sarflaydi — Kislorod yonidagi taymerni kuzating.', tip_run: 'Yugurganda tez nafas olasiz: kislorod deyarli ikki baravar tez kamayadi.', tip_rover: 'Rover tez yuradi, shuning uchun har bir safarda kamroq kislorod ketadi. Havoni tejash uchun roverda yuring!', tip_half: 'Kislorodning yarmi tugadi. Kislorod chizig‘ini oq chiziqdan yuqorida saqlang — uyga qaytish uchun shuncha kerak.', tip_rock: 'Bu qora lava toshining deyarli yarmi kislorod — u minerallar ichiga qamalgan!', tip_maker: 'Kislorod mashinasi toshlarni qizdirib, ichidan kislorodni ajratib oladi. Baza baki to‘lishini kuzating!', tip_refill: 'Laboratoriya kostyumingizni baza bakidan to‘ldirmoqda. Har bir to‘ldirish baza kislorodini sarflaydi.', winT1: 'Baza yana nafas olmoqda!', winD1: 'Siz Oy toshlaridan baza bakini to‘ldirishga yetarli kislorod oldingiz ({n} ta tosh, vaqt {t}). Oy toshlari og‘irligining taxminan 40–45 foizi kislorod — u qadimgi lavada hosil bo‘lgan minerallar ichiga qamalgan. Kelajakda kosmonavtlar shu yo‘l bilan nafas olish uchun havo va raketa yoqilg‘isi olishni rejalashtirmoqda.',
+    map_title: 'OY XARITASI', map_sub: 'Oy atrofida uchadigan NASA kosmik apparati olgan butun Oyning haqiqiy foto xaritasi', map_btn: 'XARITA', map_close: 'YOPISH', map_credit: 'Xarita: NASA Goddard kosmik parvozlar markazi / Arizona shtat universiteti · Yopish uchun M yoki Esc', map_here: 'SIZ SHU YERDASIZ', map_lvl: '{n}-bosqich', map_near: 'Yaqin tomon (Yerga qaragan)', map_far: 'Uzoq tomon', map_hint: 'Joy haqida bilish uchun belgini bosing.', site1_name: 'Taurus–Littrou vodiysi (Apollon 17)', site1_info: 'Bu vodiyni qadimgi lava to‘ldirgan. 1972-yilda Apollon 17 kosmonavtlari bu yerda vulqon “olov favvoralari” hosil qilgan to‘q sariq shisha donachalarni topdilar. Bu yerdagi qora lava toshida kislorod ajratib olish mumkin bo‘lgan mineral ko‘p. Shuning uchun kislorod bazamiz shu yerda.', site2_name: 'Shekklton krateri, janubiy qutb', site2_info: 'Kengligi taxminan 21 km, chuqurligi 4 km dan ortiq. Qutbda Quyosh doim juda past turadi, shuning uchun krater tubi milliardlab yillardan beri soyada va bizga ma’lum eng sovuq joylardan biri — −173 °C dan ham ancha sovuq.', apollo_info: 'Apollon {n} bu yerga {y}-yilda qo‘ndi.', help_map: 'M — Oy xaritasi (haqiqiy Oyda qayerdasiz)',
+    kidTitleS: 'Missiya tushuntirishi: Quyosh radiatsiya bo‘roni', kidStorm: ['Xush kelibsiz, yosh kosmonavt! Siz tashqaridasiz, Oy bazasi yaqinida.', 'Tez orada Quyosh quyosh bo‘ronini chiqaradi. Ekranda 45 soniyalik taymerli qizil ogohlantirish paydo bo‘ladi.', 'Kostyum va yupqa devorlar quyosh bo‘ronini to‘xtata olmaydi! Agar bo‘ron sizni tashqarida ushlasa, ekranni oq shovqin qoplaydi, radiatsiya hisoblagichi baland chiqillaydi va salomatlik tez kamayadi.', 'Bazaga yuguring! Yugurish uchun Shift ni bosib turing. Bazaning o‘rtasida dumaloq Bo‘ron boshpanasi bor.', 'Boshpananing devorlari ichi bo‘sh. Ikkita suv jo‘mragiga boring va har birida E ni 5 soniya bosib turib, devorlarga suv quying.', 'Mana ilm: suv radiatsiyani metalldan yaxshiroq to‘xtatadi! Suvda vodorod ko‘p, u bo‘ronning mayda zarralarini yutib oladi.', 'Ikkala devor to‘lgach, boshpana ichiga kiring. Siz xavfsizsiz va salomatligingiz tiklanadi.', 'Tayyormisiz? Boshlash tugmasini bosing. Omad!'], st_warnT: 'QUYOSH BO‘RONI YAQINLASHMOQDA', st_hitT: 'QUYOSH BO‘RONI! RADIATSIYA YUQORI', st_msg: 'Kostyum va yupqa devorlar quyosh bo‘ronini to‘xtata olmaydi! Bo‘ron boshpanasiga boring!', st_hitSay: 'Quyosh bo‘roni keldi! Boshpanaga kiring va devorlarini suv bilan to‘ldiring!', st_safe: 'Suv devorlar radiatsiyani to‘smoqda. Ichkarida qoling!', obj_survey: 'Baza atrofini ko‘zdan kechiring', sobj_run: 'Bazaga yuguring — Bo‘ron boshpanasiga!', sobj_valve: '{n}-suv jo‘mragida E ni bosib turib, devorni to‘ldiring', sobj_enter: 'Bo‘ron boshpanasi ichiga kiring', sobj_wait: 'Siz xavfsizsiz. Ichkarida qoling — bo‘ron kelmoqda', sobj_ok: 'Himoyalangansiz! Ichkarida qoling — salomatlik tiklanmoqda', walls: 'Boshpana devorlari', tgt_shelter: 'Boshpana', tgt_valve: '{n}-jo‘mrak', p_valve: 'E ni bosib turing — {n}-devorga suv quyish ({p}%)', a_valve: '{n}-devorga suv quyilmoqda…', st_wallFull: '{n}-devor suvga to‘ldi!', storm_in: 'Bo‘ronga', lose_storm: 'Quyosh bo‘roni radiatsiyasi juda kuchli edi. Keyingi safar darhol boshpanaga yuguring va devorlarini suv bilan to‘ldiring.', swinT: 'Siz quyosh bo‘ronidan omon qoldingiz!', swinD: 'Suv devorlar radiatsiyani to‘sib, sizni himoya qildi (vaqt {t}). Suvda vodorod ko‘p va u bo‘ronning mayda zarralarini metalldan yaxshiroq to‘xtatadi — zarralar urilganda metall hatto qo‘shimcha radiatsiya hosil qilishi mumkin. Shuning uchun olimlar kelajakdagi Oy bazalarini suv va Oy tuprog‘i bilan himoyalashni xohlashadi.', site3_name: 'Dekart tog‘liklari (Apollon 16)', site3_info: 'Apollon 16 kosmonavtlari bu yerni 1972-yil aprelida o‘rgandilar. Atigi to‘rt oydan so‘ng, 1972-yil avgustda, kosmik asrning eng kuchli quyosh bo‘ronlaridan biri Oyga urildi. Bu yerda turgan odamga bo‘ron boshpanasi kerak bo‘lardi.',
     clock: 'Oy vaqti', t_out: 'Tashqarida', t_suit: 'Kostyum', ph_day: 'Kunduz', ph_night: 'Tun', ph_dawn: 'Tong', ph_dusk: 'Shom',
     w_cold: 'KOSTYUM MUZLAYAPTI — quyosh nuriga yoki oyna nuriga chiqing!', w_hot: 'KOSTYUM O‘TA QIZIYAPTI — soyaga yoki roverga o‘ting!',
     w_dark: 'Krater soyasi: issiqlikni ushlab turadigan havo yo‘q — −173 °C! Qirg‘oqqa oynalar qo‘ying.',
@@ -243,8 +261,9 @@ const T = {
     kidTitle: 'Инструктаж для юных астронавтов', kidTitleM: 'Инструктаж: Смертельная тень', readAloud: '🔊 Прочитать вслух', stopRead: '⏹ Остановить', controls: 'Управление',
     kidMoon: ['Добро пожаловать, юный астронавт! На нашей лунной базе заканчивается воздух для дыхания.', 'На Луне нет воздуха. В твоём скафандре маленький баллон с кислородом, а на базе — один большой кислородный бак.', 'Вот секрет: лунные камни почти наполовину состоят из кислорода! Он заперт внутри камня, и кислородная машина на базе умеет его извлекать.', 'Твоя задача: собери светящиеся камни, привези их на базу и загрузи в кислородную машину. Наполни бак базы до 100 процентов.', 'Следи за шкалой кислорода. Таймер показывает, на сколько хватит воздуха, а белая черта — сколько воздуха нужно, чтобы вернуться домой. Всегда поворачивай назад, пока кислород не дошёл до черты!', 'Когда бежишь, дышишь чаще и тратишь больше кислорода. Ровер быстрый, поэтому на нём каждая поездка тратит меньше воздуха.', 'На базе лаборатория заправляет скафандр из большого бака. Каждая заправка тратит кислород базы, поэтому не трать его зря.', 'Ходи клавишами W, A, S и D, прыгай пробелом и нажимай E, чтобы поднять камень и сесть в ровер.', 'Готов? Нажми кнопку «Начать». Удачи!'],
     kidShadow: ['Добро пожаловать, юный астронавт! В глубоком тёмном кратере сломалась башня связи.', 'На солнце твой скафандр сильно нагревается. А в тени кратера минус 173 градуса! Энергия и здоровье быстро замерзают.', 'Вот секрет. На Земле воздух работает как одеяло и сохраняет тепло. На Луне воздуха нет, поэтому на солнце кипяток, а в тени мороз.', 'Твой план: поезжай на ровере к кратеру. Подойди к каждому светящемуся месту на солнечном краю и нажми E, чтобы поставить гигантское зеркало. У тебя три зеркала.', 'Зеркала отразят солнечный свет в тёмный кратер и создадут тёплое светлое пятно вокруг башни.', 'Теперь спустись вниз, встань в тёплый свет и нажми E у башни, чтобы начать ремонт. Если отойдёшь, ремонт встанет на паузу — можно согреться и вернуться.', 'Ходи клавишами W, A, S и D, прыгай пробелом, действуй клавишей E. Клавиша C меняет камеру.', 'Готов? Нажми кнопку «Начать». Удачи!'],
-    tank: 'Бак O₂ базы', o2home: 'Путь домой: нужно ~{n}%', obj_fill: 'Кислородный бак базы: {n}%', maker: 'Кислородная машина', heating: 'греются камни: {n}', idle: 'готова', rocks: 'Сдано камней', obj_home: 'Вернитесь и пополните кислород', w_turn: 'НЕМЕДЛЕННО ПОВОРАЧИВАЙ! У тебя {a}% кислорода — на дорогу домой нужно около {b}%.', w_soon: 'Скоро пора домой — кислород приближается к белой черте.', w_tank0: 'Бак базы ПУСТ — лаборатория не может заправить скафандр! Резервная система делает воздух очень медленно. Привези камни!', w_tankLow: 'Бак базы почти пуст — скорее привези камни!', f_oxy: '+{o}% кислорода базы · +${m}', f_newRocks: 'В кратерах найдены новые светящиеся камни!', tip_out: 'Теперь ты снаружи. Скафандр тратит кислород — следи за таймером рядом с «Кислород».', tip_run: 'Когда бежишь, дышишь чаще: кислород уходит почти вдвое быстрее.', tip_rover: 'Ровер быстрый, поэтому каждая поездка тратит меньше кислорода. Езди, чтобы беречь воздух!', tip_half: 'Половина кислорода израсходована. Держи шкалу кислорода выше белой черты — столько нужно, чтобы вернуться домой.', tip_rock: 'Этот тёмный лавовый камень почти наполовину состоит из кислорода, запертого в минералах!', tip_maker: 'Кислородная машина нагревает камни и извлекает из них кислород. Смотри, как наполняется бак базы!', tip_refill: 'Лаборатория заправляет скафандр из бака базы. Каждая заправка тратит кислород базы.', winT1: 'База снова дышит!', winD1: 'Ты добыл из лунных камней достаточно кислорода, чтобы наполнить бак базы (камней: {n}, время {t}). Лунные камни примерно на 40–45 % по массе состоят из кислорода — он заперт в минералах вроде ильменита, которые образовались в древней лаве. Будущие астронавты собираются так получать воздух для дыхания и ракетное топливо.',
-    map_title: 'КАРТА ЛУНЫ', map_sub: 'Настоящая фотокарта всей Луны с аппарата NASA Lunar Reconnaissance Orbiter', map_btn: 'КАРТА', map_close: 'ЗАКРЫТЬ', map_credit: 'Карта: NASA / GSFC / Университет штата Аризона (мозаика камеры LRO) · M или Esc — закрыть', map_here: 'ТЫ ЗДЕСЬ', map_lvl: 'Уровень {n}', map_near: 'Видимая сторона (к Земле)', map_far: 'Обратная сторона', map_hint: 'Нажми на отметку, чтобы узнать о месте.', site1_name: 'Долина Тавр–Литтров (Аполлон-17)', site1_info: 'Эту долину залила древняя лава. В 1972 году астронавты «Аполлона-17» нашли здесь оранжевые стеклянные шарики, созданные вулканическими «огненными фонтанами». Тёмная лава богата ильменитом — минералом, из которого можно извлечь кислород. Поэтому наша кислородная база здесь.', site2_name: 'Кратер Шеклтон, южный полюс', site2_info: 'Около 21 км в ширину и глубже 4 км. На полюсе Солнце всегда стоит очень низко, поэтому дно кратера миллиарды лет находится в тени и это одно из самых холодных известных мест — гораздо холоднее −173 °C.', apollo_info: '«Аполлон-{n}» сел здесь в {y} году.', help_map: 'M — карта Луны (где ты на настоящей Луне)',
+    tank: 'Кислородный бак базы', o2home: 'Путь домой: нужно ~{n}%', obj_fill: 'Кислородный бак базы: {n}%', maker: 'Кислородная машина', heating: 'греются камни: {n}', idle: 'готова', rocks: 'Сдано камней', obj_home: 'Вернитесь и пополните кислород', w_turn: 'НЕМЕДЛЕННО ПОВОРАЧИВАЙ! У тебя {a}% кислорода — на дорогу домой нужно около {b}%.', w_soon: 'Скоро пора домой — кислород приближается к белой черте.', w_tank0: 'Бак базы ПУСТ — лаборатория не может заправить скафандр! Резервная система делает воздух очень медленно. Привези камни!', w_tankLow: 'Бак базы почти пуст — скорее привези камни!', f_oxy: '+{o}% кислорода базы · +${m}', f_newRocks: 'В кратерах найдены новые светящиеся камни!', tip_out: 'Теперь ты снаружи. Скафандр тратит кислород — следи за таймером рядом с «Кислород».', tip_run: 'Когда бежишь, дышишь чаще: кислород уходит почти вдвое быстрее.', tip_rover: 'Ровер быстрый, поэтому каждая поездка тратит меньше кислорода. Езди, чтобы беречь воздух!', tip_half: 'Половина кислорода израсходована. Держи шкалу кислорода выше белой черты — столько нужно, чтобы вернуться домой.', tip_rock: 'Этот тёмный лавовый камень почти наполовину состоит из кислорода, запертого в минералах!', tip_maker: 'Кислородная машина нагревает камни и извлекает из них кислород. Смотри, как наполняется бак базы!', tip_refill: 'Лаборатория заправляет скафандр из бака базы. Каждая заправка тратит кислород базы.', winT1: 'База снова дышит!', winD1: 'Ты добыл из лунных камней достаточно кислорода, чтобы наполнить бак базы (камней: {n}, время {t}). Лунные камни примерно на 40–45 % по массе состоят из кислорода — он заперт в минералах, которые образовались в древней лаве. Будущие астронавты собираются так получать воздух для дыхания и ракетное топливо.',
+    map_title: 'КАРТА ЛУНЫ', map_sub: 'Настоящая фотокарта всей Луны, снятая аппаратом NASA, который летает вокруг Луны', map_btn: 'КАРТА', map_close: 'ЗАКРЫТЬ', map_credit: 'Карта: Центр космических полётов NASA имени Годдарда / Университет штата Аризона · M или Esc — закрыть', map_here: 'ТЫ ЗДЕСЬ', map_lvl: 'Уровень {n}', map_near: 'Видимая сторона (к Земле)', map_far: 'Обратная сторона', map_hint: 'Нажми на отметку, чтобы узнать о месте.', site1_name: 'Долина Тавр–Литтров (Аполлон-17)', site1_info: 'Эту долину залила древняя лава. В 1972 году астронавты «Аполлона-17» нашли здесь оранжевые стеклянные шарики, созданные вулканическими «огненными фонтанами». В здешней тёмной лаве много минерала, из которого можно извлечь кислород. Поэтому наша кислородная база здесь.', site2_name: 'Кратер Шеклтон, южный полюс', site2_info: 'Около 21 км в ширину и глубже 4 км. На полюсе Солнце всегда стоит очень низко, поэтому дно кратера миллиарды лет находится в тени и это одно из самых холодных известных мест — гораздо холоднее −173 °C.', apollo_info: '«Аполлон-{n}» сел здесь в {y} году.', help_map: 'M — карта Луны (где ты на настоящей Луне)',
+    kidTitleS: 'Инструктаж: Солнечная радиационная буря', kidStorm: ['Добро пожаловать, юный астронавт! Ты снаружи, рядом с лунной базой.', 'Скоро Солнце выбросит солнечную бурю. Появится красное предупреждение с таймером на 45 секунд.', 'Скафандр и тонкие стены не могут остановить солнечную бурю! Если она застанет тебя снаружи, экран покроют белые помехи, счётчик радиации будет громко трещать, а здоровье будет быстро падать.', 'Беги на базу! Держи Shift, чтобы бежать. В центре базы стоит круглое штормовое убежище.', 'У убежища полые стены. Подойди к двум водяным вентилям и держи E по 5 секунд на каждом, чтобы закачать воду в стены.', 'Вот наука: вода задерживает радиацию лучше металла! В воде много водорода, который поглощает крошечные частицы бури.', 'Когда обе стены заполнены, зайди в убежище. Ты в безопасности, и здоровье восстанавливается.', 'Готов? Нажми кнопку «Начать». Удачи!'], st_warnT: 'ПРИБЛИЖАЕТСЯ СОЛНЕЧНАЯ БУРЯ', st_hitT: 'СОЛНЕЧНАЯ БУРЯ! ВЫСОКАЯ РАДИАЦИЯ', st_msg: 'Скафандр и тонкие стены не остановят солнечную бурю! Беги в штормовое убежище!', st_hitSay: 'Солнечная буря пришла! Беги в убежище и заполни его стены водой!', st_safe: 'Водяные стены задерживают радиацию. Оставайся внутри!', obj_survey: 'Осмотрись рядом с базой', sobj_run: 'Беги на базу — в штормовое убежище!', sobj_valve: 'Держи E у водяного вентиля {n}, чтобы заполнить стену', sobj_enter: 'Зайди в штормовое убежище', sobj_wait: 'Ты в безопасности. Оставайся внутри — буря приближается', sobj_ok: 'Защищён! Оставайся внутри — здоровье восстанавливается', walls: 'Стены убежища', tgt_shelter: 'Убежище', tgt_valve: 'Вентиль {n}', p_valve: 'Держите E — качать воду в стену {n} ({p}%)', a_valve: 'Вода закачивается в стену {n}…', st_wallFull: 'Стена {n} заполнена водой!', storm_in: 'До бури', lose_storm: 'Радиация солнечной бури оказалась слишком сильной. В следующий раз сразу беги в убежище и заполняй стены водой.', swinT: 'Ты пережил солнечную бурю!', swinD: 'Водяные стены задержали радиацию и спасли тебя (время {t}). В воде много водорода, и он останавливает крошечные частицы бури лучше металла — металл при ударе частиц может даже создавать дополнительную радиацию. Поэтому учёные хотят защищать будущие лунные базы водой и лунным грунтом.', site3_name: 'Нагорье Декарта (Аполлон-16)', site3_info: 'Астронавты «Аполлона-16» исследовали это место в апреле 1972 года. Всего через четыре месяца, в августе 1972 года, Луну накрыла одна из сильнейших солнечных бурь космической эпохи. Тому, кто был бы здесь, понадобилось бы штормовое убежище.',
     clock: 'Лунное время', t_out: 'Снаружи', t_suit: 'Скафандр', ph_day: 'День', ph_night: 'Ночь', ph_dawn: 'Рассвет', ph_dusk: 'Закат',
     w_cold: 'СКАФАНДР ЗАМЕРЗАЕТ — выйдите на солнце или в луч зеркала!', w_hot: 'СКАФАНДР ПЕРЕГРЕВАЕТСЯ — уйдите в тень или в ровер!',
     w_dark: 'Тень кратера: нет воздуха, чтобы удерживать тепло — здесь −173 °C! Поставьте зеркала на кромке.',
@@ -594,9 +613,10 @@ function makeLab() {
     const p = new THREE.Mesh(new THREE.PlaneGeometry(w, w / 4), new THREE.MeshBasicMaterial({ map: t })); p.position.set(x, y, z); p.rotation.y = ry; g.add(p);
   };
   const holoMat = new THREE.MeshBasicMaterial({ color: 0x66e6ff, transparent: true, opacity: 0.55 });
-  g.add(mesh(new THREE.CylinderGeometry(1.3, 1.5, 0.9, 28), M.dark, 0, 0.55, 0));
-  g.add(mesh(new THREE.CylinderGeometry(1.2, 1.2, 0.06, 28), holoMat, 0, 1.03, 0, false));
-  const holo = mesh(new THREE.SphereGeometry(0.6, 22, 14), M.sample, 0, 1.9, 0, false); g.add(holo);
+  const table = new THREE.Group(); g.add(table);
+  table.add(mesh(new THREE.CylinderGeometry(1.3, 1.5, 0.9, 28), M.dark, 0, 0.55, 0));
+  table.add(mesh(new THREE.CylinderGeometry(1.2, 1.2, 0.06, 28), holoMat, 0, 1.03, 0, false));
+  const holo = mesh(new THREE.SphereGeometry(0.6, 22, 14), M.sample, 0, 1.9, 0, false); table.add(holo);
   // medical bay (west)
   mk(1.6, 0.55, 3.2, M.white, MED.x, 0.4, MED.z); mk(1.4, 0.18, 3.0, M.grey, MED.x, 0.74, MED.z);
   mk(0.2, 2.4, 3.6, M.white, -8.5, 1.3, MED.z);
@@ -606,7 +626,7 @@ function makeLab() {
   mk(1.0, 2.4, 3.6, M.dark, STORE.x + 0.2, 1.3, STORE.z);
   [0.7, 1.4, 2.1].forEach(y => mk(0.06, 0.1, 3.3, new THREE.MeshBasicMaterial({ color: 0x66e6ff }), STORE.x - 0.31, y, STORE.z));
   [[0.45, -1.1], [0.45, 0.2], [1.15, -0.5], [1.15, 1.0], [1.85, 0.2]].forEach(([y, dz], i) => mk(0.4, 0.4, 0.55, i % 2 ? M.orange : M.grey, STORE.x - 0.4, y, STORE.z + dz));
-  sign('O2 MAKER  E', '#ffb070', STORE.x - 0.33, 2.9, STORE.z, -Math.PI / 2);
+  sign('OXYGEN MAKER  E', '#ffb070', STORE.x - 0.33, 2.9, STORE.z, -Math.PI / 2);
   const makerGlow = mk(0.06, 0.22, 3.3, new THREE.MeshBasicMaterial({ color: 0x3a2a22 }), STORE.x - 0.33, 2.45, STORE.z);
   // the base oxygen tank (fills as rocks are turned into oxygen)
   g.add(mesh(new THREE.CylinderGeometry(0.62, 0.62, 2.5, 22, 1, true), M.glass, 7.6, 1.35, -1.5, false));
@@ -616,7 +636,7 @@ function makeLab() {
   const tankFill = new THREE.Mesh(fillGeo, new THREE.MeshBasicMaterial({ color: 0x8ec5d6, transparent: true, opacity: 0.85 }));
   tankFill.position.set(7.6, 0.18, -1.5); g.add(tankFill);
   { const pipe = mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.4, 8), M.grey, 7.25, 2.2, -0.35, false); pipe.rotation.x = Math.PI / 2; g.add(pipe); }
-  sign('BASE O2', '#8ec5d6', 6.95, 2.95, -1.5, -Math.PI / 2, 1.5);
+  sign('BASE OXYGEN', '#8ec5d6', 6.95, 2.95, -1.5, -Math.PI / 2, 1.5);
   // workshop (north wall)
   mk(3.2, 1.0, 0.9, M.dark, WORKSHOP.x, 0.6, WORKSHOP.z - 0.5); mk(3.4, 2.2, 0.2, M.grey, 0, 1.2, -8.55);
   mk(2.6, 0.9, 0.06, new THREE.MeshBasicMaterial({ color: 0x66e6ff, transparent: true, opacity: 0.7 }), 0, 1.7, -8.4);
@@ -686,7 +706,7 @@ function makeLab() {
   const beam = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 160, 12, 1, true),
     new THREE.MeshBasicMaterial({ color: 0x55dfff, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
   beam.position.y = 80; g.add(beam);
-  return { group: g, door, holo, tankFill, makerGlow };
+  return { group: g, door, holo, table, tankFill, makerGlow };
 }
 
 // ----------------------------------------------------------------- audio
@@ -720,6 +740,11 @@ class Sfx {
   crash() { this.beep(70, 0.28, 'square', 0.3); this.beep(140, 0.2, 'sawtooth', 0.22, 0.02); this.beep(900, 0.08, 'square', 0.1, 0.01); }
   pick() { this.beep(520, 0.1, 'square', 0.12); this.beep(780, 0.14, 'square', 0.12, 0.08); }
   alarm() { this.beep(440, 0.18, 'sawtooth', 0.18); this.beep(330, 0.18, 'sawtooth', 0.18, 0.2); }
+  click(g = 0.8) {                     // Geiger-counter tick
+    if (!this.ok || this.ctx.state !== 'running') return;
+    if (!this.nb) { const n = Math.floor(this.ctx.sampleRate * 0.006); this.nb = this.ctx.createBuffer(1, n, this.ctx.sampleRate); const d = this.nb.getChannelData(0); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3); }
+    const src = this.ctx.createBufferSource(), gn = this.ctx.createGain(); src.buffer = this.nb; gn.gain.value = g; src.connect(gn); gn.connect(this.master); src.start();
+  }
   resume() { if (this.ok && this.ctx.state === 'suspended') this.ctx.resume(); }
   close() { if (this.ok) { try { this.eng.stop(); this.ctx.close(); } catch (e) { /* ignore */ } } }
 }
@@ -783,6 +808,12 @@ const CSS = `
 .mg-mapinfo{margin:12px auto 0;width:min(100%,calc((100vh - 290px)*2));padding:12px 16px;border-radius:14px;background:rgba(28,15,19,.45);border:1px solid rgba(212,219,219,.14);text-align:left}
 .mg-mapinfo b{display:block;font-size:15px;margin-bottom:3px}.mg-mapinfo .co{font-size:12px;color:#BBBAC6;margin-bottom:6px}.mg-mapinfo p{margin:0;font-size:13.5px;line-height:1.55;color:#E2E2E2}
 .mg-mapcred{margin-top:10px;font-size:11px;color:#BBBAC6;text-align:center}
+.mg-static{position:absolute;inset:0;pointer-events:none;opacity:0;background-color:rgba(255,255,255,.18);background-size:160px 160px;image-rendering:pixelated;mix-blend-mode:screen}
+.mg-storm{position:absolute;left:50%;top:98px;transform:translateX(-50%);min-width:min(520px,90vw);max-width:min(680px,94vw);padding:10px 20px;text-align:center;display:none;border-color:rgba(255,90,70,.7);background:linear-gradient(160deg,rgba(120,18,18,.82),rgba(60,8,10,.86))}
+.mg-storm b{display:block;font-size:19px;letter-spacing:.1em;color:#FFD2C8}.mg-storm span{display:block;margin-top:4px;font-size:13.5px;color:#FFE9E3}
+.mg-storm.hit{animation:mgstorm .8s infinite}.mg-storm.safe{border-color:rgba(110,231,160,.7);background:linear-gradient(160deg,rgba(18,80,60,.82),rgba(8,40,30,.86));animation:none}.mg-storm.safe b{color:#C9FFE3}
+@keyframes mgstorm{50%{box-shadow:0 0 34px rgba(255,60,40,.75)}}
+.mg-root.storm .mg-view{top:190px}
 .mg-env{position:absolute;right:18px;top:344px;width:208px;padding:10px 14px;font-size:12.5px;line-height:1.65}
 .mg-env .clk{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}.mg-env .clk b{font-size:17px;letter-spacing:.06em;font-variant-numeric:tabular-nums}.mg-env .clk span{color:#BBBAC6;font-size:11.5px;letter-spacing:.1em;text-transform:uppercase}
 .mg-env .tr{display:flex;justify-content:space-between;color:#BBBAC6}.mg-env .tr b{color:#E2E2E2;font-variant-numeric:tabular-nums}
@@ -845,14 +876,22 @@ function createGame(opts) {
   let destroyed = false, raf = 0;
   SHADOW.on = opts.mission === 'shadow';
   const MISSION = SHADOW.on;
+  SHELTER.on = opts.mission === 'storm';
+  const STORM = SHELTER.on;
   MIR_SPOTS.forEach(m => { m.placed = false; });
 
   // ---------- DOM
   container.innerHTML = '';
   const style = el('style'); style.textContent = CSS; container.appendChild(style);
-  const root = el('div', 'mg-root'); container.appendChild(root);
+  const root = el('div', 'mg-root' + (opts.mission === 'storm' ? ' storm' : '')); container.appendChild(root);
   const canvas = el('canvas', 'mg-canvas'); root.appendChild(canvas);
+  const stat = el('div', 'mg-static'); root.appendChild(stat);
   const vig = el('div', 'mg-vig'), hurt = el('div', 'mg-hurt'); root.append(vig, hurt);
+  const stormEl = el('div', 'mg-storm mg-glass', '<b></b><span></span>'); root.appendChild(stormEl);
+  const stormB = stormEl.querySelector('b'), stormS = stormEl.querySelector('span');
+  { const c = document.createElement('canvas'); c.width = c.height = 160; const g = c.getContext('2d'), im = g.createImageData(160, 160);
+    for (let i = 0; i < im.data.length; i += 4) { const v = Math.random() < 0.5 ? 255 : Math.random() * 120; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = Math.random() < 0.55 ? 255 : 0; }
+    g.putImageData(im, 0, 0); stat.style.backgroundImage = 'url(' + c.toDataURL() + ')'; }
   const stats = el('div', 'mg-stats mg-glass'); root.appendChild(stats);
   const BARS = [['health', '#6EE7A0'], ['oxygen', '#B7CECE'], ['tank', '#8EC5D6'], ['energy', '#FFB54D'], ['rover', '#BBBAC6'], ['radiation', '#FF6F6F']];
   const bar = {};
@@ -863,7 +902,7 @@ function createGame(opts) {
   });
   bar.oxygen.f.parentNode.insertAdjacentHTML('beforeend', '<i class="mk"></i>'); bar.oxygen.mk = bar.oxygen.row.querySelector('.mk');
   bar.oxygen.row.insertAdjacentHTML('beforeend', '<div class="mg-home"></div>'); bar.oxygen.home = bar.oxygen.row.querySelector('.mg-home');
-  if (MISSION) bar.tank.row.style.display = 'none';
+  if (MISSION || STORM) bar.tank.row.style.display = 'none';
   const inv = el('div', 'mg-inv mg-glass'); root.appendChild(inv);
   const tipEl = el('div', 'mg-tip mg-glass'); root.appendChild(tipEl);
   const env = el('div', 'mg-env mg-glass', '<div class="clk"><b></b><span></span></div><div class="tr"><span class="a"></span><b class="av"></b></div><div class="tr"><span class="u"></span><b class="uv"></b></div><div class="tb"><span></span></div>'); root.appendChild(env);
@@ -931,17 +970,18 @@ function createGame(opts) {
   }
   function startBriefing() {
     const items = ovHelp.querySelectorAll('.mg-steps li');
-    speakLines([tr(MISSION ? 'kidTitleM' : 'kidTitle')].concat(T[lang][MISSION ? 'kidShadow' : 'kidMoon']), i => {
+    speakLines([tr(BK()[0])].concat(T[lang][BK()[1]]), i => {
       items.forEach((li, k) => li.classList.toggle('on', k === i - 1));
       if (i >= 1 && items[i - 1]) items[i - 1].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });
   }
 
+  function BK() { return STORM ? ['kidTitleS', 'kidStorm'] : MISSION ? ['kidTitleM', 'kidShadow'] : ['kidTitle', 'kidMoon']; }
   function applyDom() {
     BARS.forEach(([k]) => { bar[k].n.textContent = tr(k); });
     pauseBtn.title = tr('paused');
-    ovHelp.innerHTML = '<div class="mg-card mg-glass mg-brief"><h2>' + tr('helpTitle') + '</h2><div class="mg-sub">' + tr(MISSION ? 'kidTitleM' : 'kidTitle') + '</div><ol class="mg-steps">' +
-      T[lang][MISSION ? 'kidShadow' : 'kidMoon'].map(h => '<li>' + h + '</li>').join('') + '</ol><details class="mg-ctl"><summary>' + tr('controls') + '</summary><ul>' +
+    ovHelp.innerHTML = '<div class="mg-card mg-glass mg-brief"><h2>' + tr('helpTitle') + '</h2><div class="mg-sub">' + tr(BK()[0]) + '</div><ol class="mg-steps">' +
+      T[lang][BK()[1]].map(h => '<li>' + h + '</li>').join('') + '</ol><details class="mg-ctl"><summary>' + tr('controls') + '</summary><ul>' +
       T[lang].help.map(h => '<li>' + h + '</li>').join('') + '</ul></details><div class="mg-btns"><button class="mg-btn" id="rd" type="button"></button><button class="mg-btn pri" id="go" type="button">' + tr('begin') + '</button></div></div>';
     ovHelp.querySelector('#go').onclick = () => { stopSpeech(); ovHelp.style.display = 'none'; sfx.resume(); S.paused = false; };
     ovHelp.querySelector('#rd').onclick = () => { if (speaking) stopSpeech(); else startBriefing(); };
@@ -959,7 +999,7 @@ function createGame(opts) {
   let mapOpen = false, mapWasPaused = false, mapSel = null;
   const fmtLat = v => Math.abs(v).toFixed(1) + '° ' + (v >= 0 ? 'N' : 'S'), fmtLon = v => Math.abs(v).toFixed(1) + '° ' + (v >= 0 ? 'E' : 'W');
   const mapPos = (lat, lon) => ({ x: (lon + 180) / 360 * 100, y: clamp((90 - lat) / 180 * 100, 3, 97) });
-  function hereKey() { return MISSION ? 'site2' : 'site1'; }
+  function hereKey() { return STORM ? 'site3' : MISSION ? 'site2' : 'site1'; }
   function siteInfo(si) {
     if (si.apollo) return { name: 'Apollo ' + si.apollo, co: fmtLat(si.lat) + ', ' + fmtLon(si.lon), text: tr('apollo_info', { n: si.apollo, y: si.y }) };
     return { name: tr(si.key + '_name') + ' · ' + tr('map_lvl', { n: si.level }), co: fmtLat(si.lat) + ', ' + fmtLon(si.lon), text: tr(si.key + '_info') };
@@ -1054,7 +1094,7 @@ function createGame(opts) {
 
   // sample sites
   const rocks = [];
-  (MISSION ? [] : SITES).forEach(s => {
+  (MISSION || STORM ? [] : SITES).forEach(s => {
     s.left = 4; s.beam = null;
     const beam = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 420, 14, 1, true),
       new THREE.MeshBasicMaterial({ color: 0x55dfff, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
@@ -1172,15 +1212,17 @@ function createGame(opts) {
     foot: { x: DOOR.x, z: DOOR.z + 5, yaw: 0, speed: 0, phase: 0, y: 0, h: 0, vh: 0, air: false, landT: 0 },
     car: { x: 24, z: 40, yaw: 0.5, v: 0, steer: 0, y: 0, pitch: 0, roll: 0, h: 0, vh: 0, air: false },
     hp: 100, o2: 100, en: 100, rv: 100, money: START_MONEY, svc: { heal: false, repair: false }, svcT: 0, hitT: 0, hitUntil: 0, lastDmg: 0, shake: 0, smokeT: 0, rad: 0, carried: 0, cargo: 0, delivered: 0,
-    action: null, flare: { next: MISSION ? 1e9 : 70, warn: false, on: false, t: 0 }, shade: false, shadeT: 0, hurtT: 0,
+    action: null, flare: { next: 1e9,   /* random solar flares removed: the Solar Radiation Storm mission teaches this now */ warn: false, on: false, t: 0 }, shade: false, shadeT: 0, hurtT: 0,
     view: 'third', viewUntil: 0, inBase: false, autoFP: false,
     cam: { yaw: 0, yawOff: 0, pitchOff: 0, fpPitch: 0, zoom: 1, idle: 0, x: 0, y: 3, z: -8 },
     lastBeepO2: 0, lastRefill: false, doorOpen: 0, toast: 0,
     mission: MISSION, clock: CLOCK_START, amb: 40, suit: 22, sunlit: true, tempT: 0, sunU: { x: SUN.x, z: SUN.z }, tanE: 0.4,
-    tankOn: !MISSION, tank: MISSION ? 100 : TANK_START, makerQ: 0, refilling: false, o2Rate: 0, o2Line: 0, homeViaRover: false, respawnT: 0,
+    storm: { on: STORM, phase: 'calm', t: 4, timer: STORM_WARN, valves: [0, 0], pumping: -1, shielded: false, exposed: false, shieldT: 0, clickT: 0 },
+    tankOn: !MISSION && !STORM, tank: MISSION || STORM ? 100 : TANK_START, makerQ: 0, refilling: false, o2Rate: 0, o2Line: 0, homeViaRover: false, respawnT: 0,
     mirrors: { pack: 3, placed: 0 }, tower: { prog: 0, fixed: false, fixT: 0 }, winAt: 0, sparkT: 0
   };
   S.car.y = heightAt(S.car.x, S.car.z);
+  if (STORM) { S.foot.x = 38; S.foot.z = 172; S.foot.yaw = Math.atan2(-38, 19 - 172); }
   const keys = {};
   const subject = () => (S.mode === 'car' ? S.car : S.foot);
 
@@ -1273,6 +1315,78 @@ function createGame(opts) {
     if (!S.tower.fixed) { S.sparkT -= dt; if (S.sparkT <= 0) { S.sparkT = 0.5 + Math.random() * 0.7; puff(TOWER.x + 0.7, T.base + 12.4, TOWER.z, 2, 0.5, 0xffb347, 0.8); } }
   }
   if (MISSION) buildMission();
+  // ---------- mission "Solar Radiation Storm": storm shelter with hollow water walls
+  const shel = { water: [], wheels: [], mats: [] };
+  function buildShelter() {
+    lab.table.visible = false;
+    const mat = o => { const m = new THREE.MeshStandardMaterial(o); shel.mats.push(m); return m; };
+    const glass = new THREE.MeshStandardMaterial({ color: 0xcfe6ee, roughness: 0.08, metalness: 0.1, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide }); shel.mats.push(glass);
+    const frame = mat({ color: 0x4a4f58, roughness: 0.6, metalness: 0.5 });
+    const red = mat({ color: 0xd8342a, roughness: 0.45, metalness: 0.3 });
+    const H = 2.6, gap = Math.asin(SHELTER.door / ((SHELTER.rIn + SHELTER.rOut) / 2)) + 0.04;
+    const g = new THREE.Group(); scene.add(g);
+    // two hollow half-walls (A: +x side, B: −x side), the doorway faces the airlock (+z)
+    [[gap, Math.PI - gap], [Math.PI, Math.PI - gap]].forEach(([t0, len], i) => {
+      [SHELTER.rOut, SHELTER.rIn].forEach(r => g.add(mesh(new THREE.CylinderGeometry(r, r, H, 40, 1, true, t0, len), glass, 0, H / 2 + 0.05, 0, false)));
+      const wgeo = new THREE.CylinderGeometry((SHELTER.rIn + SHELTER.rOut) / 2, (SHELTER.rIn + SHELTER.rOut) / 2, 1, 40, 1, true, t0, len); wgeo.translate(0, 0.5, 0);
+      const wm = new THREE.MeshBasicMaterial({ color: 0x2f8cff, transparent: true, opacity: 0.78, side: THREE.DoubleSide, depthWrite: false }); shel.mats.push(wm);
+      const water = new THREE.Mesh(wgeo, wm); water.position.y = 0.06; water.scale.y = 0.001; g.add(water); shel.water.push(water);
+    });
+    // frame: rings at top and bottom, posts at the doorway, roof
+    [0.06, H + 0.05].forEach(y => [SHELTER.rIn, SHELTER.rOut].forEach(r => { const t = mesh(new THREE.TorusGeometry(r, 0.05, 6, 48), frame, 0, y, 0); t.rotation.x = Math.PI / 2; g.add(t); }));
+    [-1, 1].forEach(sx => [SHELTER.rIn, SHELTER.rOut].forEach(r => g.add(mesh(new THREE.BoxGeometry(0.12, H, 0.12), frame, sx * r * Math.sin(gap), H / 2 + 0.05, r * Math.cos(gap)))));
+    const roof = mesh(new THREE.CylinderGeometry(SHELTER.rOut + 0.1, SHELTER.rOut + 0.1, 0.16, 40), frame, 0, H + 0.14, 0); g.add(roof);
+    // sign above the doorway
+    const c = document.createElement('canvas'); c.width = 640; c.height = 160; const k = c.getContext('2d');
+    k.fillStyle = '#2a0c0c'; k.fillRect(0, 0, 640, 160); k.strokeStyle = '#ff6a4d'; k.lineWidth = 10; k.strokeRect(6, 6, 628, 148);
+    k.fillStyle = '#ffd2c8'; k.font = '700 70px sans-serif'; k.textAlign = 'center'; k.textBaseline = 'middle'; k.fillText('STORM SHELTER', 320, 84, 600);
+    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+    const sm = new THREE.MeshBasicMaterial({ map: tex }); shel.mats.push(sm);
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.55), sm); sign.position.set(0, H + 0.55, SHELTER.rOut + 0.02); g.add(sign);
+    // two water valves with pipes into the walls
+    VALVES.forEach((v, i) => {
+      g.add(mesh(new THREE.CylinderGeometry(0.11, 0.14, 1.05, 10), frame, v.x, 0.53, v.z));
+      const pipe = mesh(new THREE.CylinderGeometry(0.08, 0.08, Math.abs(v.x) - SHELTER.rOut + 0.1, 8), frame, Math.sign(v.x) * (SHELTER.rOut + Math.abs(v.x)) / 2, 0.25, v.z); pipe.rotation.z = Math.PI / 2; g.add(pipe);
+      const wheel = new THREE.Group(); wheel.position.set(v.x, 1.12, v.z); g.add(wheel);
+      const rim = mesh(new THREE.TorusGeometry(0.3, 0.045, 8, 22), red, 0, 0, 0); rim.rotation.x = Math.PI / 2; wheel.add(rim);
+      [0, Math.PI / 2].forEach(a => { const sp = mesh(new THREE.BoxGeometry(0.6, 0.04, 0.05), red, 0, 0, 0); sp.rotation.y = a; wheel.add(sp); });
+      shel.wheels.push(wheel);
+      const lc = document.createElement('canvas'); lc.width = 256; lc.height = 96; const lk = lc.getContext('2d');
+      lk.fillStyle = '#0c1628'; lk.fillRect(0, 0, 256, 96); lk.fillStyle = '#7fc8ff'; lk.font = '700 46px sans-serif'; lk.textAlign = 'center'; lk.textBaseline = 'middle'; lk.fillText('VALVE ' + (i + 1), 128, 50, 240);
+      const lt = new THREE.CanvasTexture(lc); lt.colorSpace = THREE.SRGBColorSpace; const lm = new THREE.MeshBasicMaterial({ map: lt }); shel.mats.push(lm);
+      const lbl = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.3), lm); lbl.position.set(v.x, 1.62, v.z); lbl.rotation.y = Math.sign(v.x) * Math.PI / 2; g.add(lbl);
+    });
+  }
+  if (STORM) buildShelter();
+  const insideShelter = () => S.mode === 'foot' && Math.hypot(S.foot.x, S.foot.z) < SHELTER.rIn + 0.1;   // anywhere inside the inner wall
+  function updateStorm(dt) {
+    const st = S.storm; if (!st.on) return;
+    st.shielded = insideShelter() && st.valves[0] >= VALVE_TIME && st.valves[1] >= VALVE_TIME;
+    if (st.phase === 'calm') { st.t -= dt; if (st.t <= 0) { st.phase = 'warn'; st.timer = STORM_WARN; sfx.alarm(); speakLines([tr('st_warnT') + '! ' + tr('st_msg')]); } }
+    else if (st.phase === 'warn') { st.timer -= dt; if (st.timer <= 0) { st.timer = 0; st.phase = 'hit'; sfx.alarm(); speakLines([tr('st_hitSay')]); } }
+    // hold E at a valve to pump water into its wall
+    st.pumping = -1;
+    if (S.mode === 'foot' && !S.action && !S.foot.air && keys.KeyE) {
+      for (let i = 0; i < 2; i++) {
+        if (st.valves[i] >= VALVE_TIME || Math.hypot(S.foot.x - VALVES[i].x, S.foot.z - VALVES[i].z) > 1.9) continue;
+        st.valves[i] = Math.min(VALVE_TIME, st.valves[i] + dt); st.pumping = i; shel.wheels[i].rotation.y += dt * 4;
+        if (st.valves[i] >= VALVE_TIME) { sfx.chime(); flash(tr('st_wallFull', { n: i + 1 })); }
+        break;
+      }
+    }
+    shel.water.forEach((w, i) => { w.scale.y = Math.max(0.001, st.valves[i] / VALVE_TIME * 2.5); });
+    // the storm: −5 health/s unless shielded; +4/s inside the filled shelter
+    st.exposed = st.phase === 'hit' && !st.shielded;
+    if (st.exposed) { S.hp -= 5 * dt; S.hurtT = 0.25; }
+    if (st.shielded) {
+      S.hp = Math.min(100, S.hp + 4 * dt);
+      if (st.phase === 'hit') { st.shieldT += dt; if (st.shieldT >= STORM_SAFE && !S.winAt) S.winAt = S.t + 0.5; }
+    }
+    // Geiger counter
+    const rate = st.exposed ? 30 : st.phase === 'hit' ? 1.2 : st.phase === 'warn' ? 0.8 + (1 - st.timer / STORM_WARN) * 5 : 0;
+    st.clickT -= dt;
+    if (rate > 0 && st.clickT <= 0) { sfx.click(st.exposed ? 1.6 : 0.6); st.clickT = -Math.log(1 - Math.random()) / rate; }
+  }
 
   // ---------- helpers
   function toast(text, secs) { msg.textContent = text; msg.style.display = 'block'; S.toast = secs || 3; }
@@ -1337,7 +1451,7 @@ function createGame(opts) {
   function flash(text) { viewTag.textContent = text; S.viewUntil = performance.now() + 1900; }
   // spoken one-time tips that teach how to manage oxygen (level 1)
   const tipsShown = {}; let tipQ = [], tipT = 0;
-  function tip(k) { if (S.mission || tipsShown[k]) return; tipsShown[k] = true; tipQ.push(k); }
+  function tip(k) { if (!S.tankOn || tipsShown[k]) return; tipsShown[k] = true; tipQ.push(k); }
   function updateTips(dt) {
     tipT -= dt;
     if (tipT > 0) return;
@@ -1449,6 +1563,7 @@ function createGame(opts) {
     const f = S.foot, c = S.car;
     if (S.mode === 'car') return Math.abs(c.v) < 3 && !c.air ? { type: 'exit', text: tr('p_exit') } : null;
     if (f.air) return null;
+    if (S.storm.on) for (let i = 0; i < 2; i++) if (S.storm.valves[i] < VALVE_TIME && Math.hypot(f.x - VALVES[i].x, f.z - VALVES[i].z) <= 1.9) return { type: 'valve', text: tr('p_valve', { n: i + 1, p: Math.round(S.storm.valves[i] / VALVE_TIME * 100) }) };
     if (S.mission) {
       if (S.mirrors.pack > 0) {
         let bs = null, bd = 1e9; for (const m of MIR_SPOTS) if (!m.placed) { const d = distTo(m, f.x, f.z); if (d < bd) { bd = d; bs = m; } }
@@ -1465,7 +1580,7 @@ function createGame(opts) {
     return null;
   }
   function interact() {
-    const c = context(); if (!c) return;
+    const c = context(); if (!c || c.type === 'valve') return;
     if (c.type === 'enter') { tip('tip_rover'); S.mode = 'car'; S.cam.fpPitch = 0; S.cam.yawOff = 0; attachToSeat(true); sfx.beep(300, 0.1, 'square', 0.12); return; }
     if (c.type === 'exit') {
       S.mode = 'foot'; S.cam.fpPitch = 0; S.cam.yawOff = 0; attachToSeat(false);
@@ -1515,6 +1630,7 @@ function createGame(opts) {
     sfx.drive(0, false);
   }
   function win() {
+    if (S.storm.on) { const m = Math.floor(S.t / 60), sc = Math.floor(S.t % 60); endCard(tr('swinT'), tr('swinD', { t: m + ':' + String(sc).padStart(2, '0') }), true); return; }
     if (S.tankOn) { const m = Math.floor(S.t / 60), sc = Math.floor(S.t % 60); endCard(tr('winT1'), tr('winD1', { n: S.delivered, t: m + ':' + String(sc).padStart(2, '0') }) + ' ' + tr('money') + ': $' + Math.floor(S.money) + '.', true); return; }
     if (S.mission) { const m = Math.floor(S.t / 60), sc = Math.floor(S.t % 60); endCard(tr('mwinT'), tr('mwinD', { t: m + ':' + String(sc).padStart(2, '0') }), true); return; }
     const m = Math.floor(S.t / 60), s = Math.floor(S.t % 60);
@@ -1704,7 +1820,7 @@ function createGame(opts) {
       else if (d <= 1e-4) { S.svc.repair = false; flash(tr('f_broke')); }
       else { S.rv += d; S.money -= d * REPAIR_COST; if (S.svcT <= 0) { sfx.beep(520, 0.04, 'square', 0.04); S.svcT = 0.22; } }
     }
-    if (S.hp <= 0) { S.hp = 0; lose(S.suit < 0 ? 'lose_cold' : S.suit > 44 ? 'lose_heat' : S.o2 <= 0 ? 'lose_o2' : 'lose_rad'); return; }
+    if (S.hp <= 0) { S.hp = 0; lose(S.storm.on && S.storm.phase === 'hit' ? 'lose_storm' : S.suit < 0 ? 'lose_cold' : S.suit > 44 ? 'lose_heat' : S.o2 <= 0 ? 'lose_o2' : 'lose_rad'); return; }
 
     // lab door
     const dDoor = Math.hypot(S.foot.x - DOOR.x, S.foot.z - DOOR.z), dCar = Math.hypot(S.car.x - DOOR.x, S.car.z - DOOR.z);
@@ -1725,6 +1841,8 @@ function createGame(opts) {
     if (!S.inBase && inside) { S.inBase = true; if (S.view === 'third') { setView('first'); S.autoFP = true; } }
     else if (S.inBase && !inside) { S.inBase = false; if (S.autoFP) { setView('third'); S.autoFP = false; } }
     updateMission(dt);
+    updateStorm(dt);
+    if (S.hp <= 0 && !S.over) { S.hp = 0; lose('lose_storm'); return; }
     if (S.winAt && S.t >= S.winAt) { S.winAt = 0; win(); }
   }
 
@@ -1852,6 +1970,14 @@ function createGame(opts) {
   let hudT = 0, mapT = 0;
   function objective() {
     const f = S.foot, c = S.car, carrying = S.carried + S.cargo;
+    if (S.storm.on) {
+      const st = S.storm;
+      if (st.phase === 'calm') return { text: tr('obj_survey'), tx: DOOR.x, tz: DOOR.z, label: tr('tgt_lab') };
+      if (st.shielded) return { text: tr(st.phase === 'hit' ? 'sobj_ok' : 'sobj_wait'), tx: 0, tz: 0, label: tr('tgt_shelter') };
+      if (S.mode === 'car' || !inBuilding(f.x, f.z)) return { text: tr('sobj_run'), tx: DOOR.x, tz: DOOR.z, label: tr('tgt_shelter') };
+      for (let i = 0; i < 2; i++) if (st.valves[i] < VALVE_TIME) return { text: tr('sobj_valve', { n: i + 1 }), tx: VALVES[i].x, tz: VALVES[i].z, label: tr('tgt_valve', { n: i + 1 }) };
+      return { text: tr('sobj_enter'), tx: 0, tz: 0, label: tr('tgt_shelter') };
+    }
     if (S.mission) {
       let tx, tz, text, label;
       if (S.mirrors.pack > 0) {
@@ -1910,7 +2036,7 @@ function createGame(opts) {
       mctx.beginPath(); mctx.arc(mx(TOWER.x), mz(TOWER.z), SHADOW.R * k, 0, 7); mctx.fillStyle = 'rgba(38,29,34,.8)'; mctx.fill(); mctx.strokeStyle = '#FF8A6A'; mctx.lineWidth = 2; mctx.stroke();
       MIR_SPOTS.forEach(m => { mctx.fillStyle = m.placed ? '#6EE7A0' : '#FFD877'; mctx.fillRect(mx(m.x) - 3, mz(m.z) - 3, 6, 6); });
       mctx.fillStyle = S.tower.fixed ? '#6EE7A0' : '#FF6A4D'; mctx.beginPath(); mctx.arc(mx(TOWER.x), mz(TOWER.z), 4, 0, 7); mctx.fill();
-    } else SITES.forEach(si => {
+    } else if (!S.storm.on) SITES.forEach(si => {
       mctx.beginPath(); mctx.arc(mx(si.x), mz(si.z), Math.max(5, si.R * k), 0, 7);
       mctx.fillStyle = si.left > 0 ? 'rgba(255,200,90,.28)' : 'rgba(150,160,175,.18)'; mctx.fill();
       mctx.strokeStyle = si.left > 0 ? '#FFC65A' : '#7D8794'; mctx.lineWidth = 2; mctx.stroke();
@@ -1954,7 +2080,10 @@ function createGame(opts) {
       }
       dset(inv, 'top', (stats.offsetTop + stats.offsetHeight + 12) + 'px');
     }
-    if (S.mission) {
+    if (S.storm.on) {
+      const pct = i => Math.round(S.storm.valves[i] / VALVE_TIME * 100);
+      dset(inv, 'html', tr('walls') + ' <b>' + pct(0) + '% · ' + pct(1) + '%</b><br>' + tr('money') + ' <b>$' + Math.floor(S.money) + '</b>');
+    } else if (S.mission) {
       dset(inv, 'html', tr('money') + ' <b>$' + Math.floor(S.money) + '</b><br>' + tr('mirrors') + ' <b>' + S.mirrors.placed + ' / 3 ' + tr('placed') + '</b><br>' + tr('mirrors') + ' <b>' + S.mirrors.pack + ' ' + tr('in_pack') + '</b><br>' + tr('tower') + ' <b>' + Math.round(towerPct()) + '%</b>');
     } else {
       dset(inv, 'html', tr('money') + ' <b>$' + Math.floor(S.money) + '</b><br>' + tr('maker') + ' <b>' + (S.makerQ > 0 ? tr('heating', { n: Math.ceil(S.makerQ / ROCK_O2 - 1e-6) }) : tr('idle')) + '</b><br>' + tr('rocks') + ' <b>' + S.delivered + '</b><br>' + tr('carrying') + ' <b>' + S.carried + ' / ' + CAP_FOOT + '</b><br>' + tr('cargo') + ' <b>' + S.cargo + ' / ' + CAP_CARGO + '</b>');
@@ -1969,7 +2098,8 @@ function createGame(opts) {
     const sc = S.suit < 2 ? '#7fb8ff' : S.suit > 44 ? '#ff7a5c' : '#6ee7a0';
     dset(envUv, 'color', sc); dset(envBar, 'background', sc); dset(envBar, 'width', Math.round(clamp((S.suit + 50) / 110 * 100, 0, 100)) + '%');
     const o = objective(); dset(objB, 'text', o.text);
-    if (S.mission) { dset(objS, 'text', tr('tower') + ': ' + Math.round(towerPct()) + '%'); dset(objP, 'width', towerPct() + '%'); }
+    if (S.storm.on) { const fill = (S.storm.valves[0] + S.storm.valves[1]) / (2 * VALVE_TIME) * 100; dset(objS, 'text', tr('walls') + ': ' + Math.round(fill) + '%'); dset(objP, 'width', fill + '%'); }
+    else if (S.mission) { dset(objS, 'text', tr('tower') + ': ' + Math.round(towerPct()) + '%'); dset(objP, 'width', towerPct() + '%'); }
     else { dset(objS, 'text', tr('obj_fill', { n: Math.floor(S.tank) })); dset(objP, 'width', Math.floor(S.tank) + '%'); }
     const s = subject();
     dset(spB, 'text', String(Math.round(Math.abs(S.mode === 'car' ? S.car.v : S.foot.speed) * 3.6))); dset(spU, 'text', tr('kmh'));
@@ -1979,7 +2109,10 @@ function createGame(opts) {
     dset(tgtB, 'text', o.label); dset(tgtS, 'text', d >= 1000 ? (d / 1000).toFixed(2) + ' km' : Math.round(d) + ' m');
     // prompt / action
     const ctx = context();
-    if (S.action) {
+    if (S.storm.on && S.storm.pumping >= 0) {
+      const i = S.storm.pumping;
+      dset(action, 'display', 'block'); dset(actT, 'text', tr('a_valve', { n: i + 1 })); dset(actP, 'width', (S.storm.valves[i] / VALVE_TIME * 100) + '%'); dset(prompt, 'display', 'none');
+    } else if (S.action) {
       dset(action, 'display', 'block'); dset(actT, 'text', S.action.text);
       dset(actP, 'width', (S.action.type === 'repair' ? towerPct() : S.action.t / S.action.dur * 100) + '%'); dset(prompt, 'display', 'none');
     } else {
@@ -2012,6 +2145,17 @@ function createGame(opts) {
     if (nearMed() && S.hp < 99.5) lines.push(S.svc.heal ? tr('s_healing') : tr('s_heal', { c: '$' + Math.ceil((100 - S.hp) * HEAL_COST) }));
     if (nearWorkshop() && roverAtBase() && S.rv < 99.5) lines.push(S.svc.repair ? tr('s_repairing') : tr('s_repair', { c: '$' + Math.ceil((100 - S.rv) * REPAIR_COST) }));
     dset(svc, 'html', lines.map(l => '<div>' + l + '</div>').join('')); dset(svc, 'display', lines.length && !S.action ? 'block' : 'none');
+    if (S.storm.on) {
+      const st = S.storm, show = st.phase !== 'calm' && !S.over;
+      dset(stormEl, 'display', show ? 'block' : 'none');
+      if (show) {
+        const safe = st.shielded, cls = 'mg-storm mg-glass' + (st.phase === 'hit' ? (safe ? ' safe' : ' hit') : (safe ? ' safe' : ''));
+        if (stormEl.className !== cls) stormEl.className = cls;
+        const sec = Math.ceil(st.timer);
+        dset(stormB, 'text', '☢ ' + (st.phase === 'warn' ? tr('st_warnT') + ' — ' + tr('storm_in') + ' 0:' + pad2(sec) : tr('st_hitT')));
+        dset(stormS, 'text', safe ? tr('st_safe') : tr('st_msg'));
+      }
+    }
     dset(viewTag, 'opacity', performance.now() < S.viewUntil ? '1' : '0');
     dset(vig, 'opacity', fl.on ? String(Math.round((0.55 + 0.25 * Math.sin(S.t * 6)) * 20) / 20) : '0');
     S.hurtT = Math.max(0, S.hurtT - 0.1); dset(hurt, 'opacity', S.hurtT > 0 ? String(Math.round(Math.min(1, S.hurtT * 3) * 10) / 10) : '0');
@@ -2026,6 +2170,11 @@ function createGame(opts) {
     if (!S.paused && !S.over) update(dt);
     poseCharacters(dt);
     if (!S.paused) { updateDust(dt); earth.rotation.y += dt * 0.16; clouds.rotation.y += dt * 0.21; }
+    if (S.storm.on) {
+      const on = S.storm.exposed && !S.over;
+      stat.style.opacity = on ? (0.42 + Math.random() * 0.25).toFixed(2) : '0';
+      if (on) stat.style.backgroundPosition = Math.floor(Math.random() * 160) + 'px ' + Math.floor(Math.random() * 160) + 'px';
+    }
     const s = subject();
     if (Math.floor(s.x / CS) !== Math.floor(px0 / CS) || Math.floor(s.z / CS) !== Math.floor(pz0 / CS)) { planChunks(s.x, s.z, false); px0 = s.x; pz0 = s.z; }
     processQueue(3.5);
@@ -2074,7 +2223,7 @@ function createGame(opts) {
       window.removeEventListener('resize', onResize); window.removeEventListener('blur', onBlur);
       for (const [, c] of chunks) removeChunk(c); chunks.clear();
       scene.traverse(o => { if (o.geometry) o.geometry.dispose(); });
-      Object.values(M).forEach(m => m.dispose()); mis.mats.forEach(m => m.dispose()); terrainMat.dispose(); detailTex.dispose(); earthTex.dispose(); cloudTex.dispose(); discTex.dispose(); SHADOW.on = false;
+      Object.values(M).forEach(m => m.dispose()); mis.mats.forEach(m => m.dispose()); shel.mats.forEach(m => m.dispose()); SHELTER.on = false; terrainMat.dispose(); detailTex.dispose(); earthTex.dispose(); cloudTex.dispose(); discTex.dispose(); SHADOW.on = false;
       sfx.close(); renderer.dispose(); try { renderer.forceContextLoss(); } catch (e) { /* ignore */ }
       container.innerHTML = '';
     },
