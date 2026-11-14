@@ -168,6 +168,82 @@ const T_NIGHT = -173, T_DAY = 121;   // surface temperature extremes (°C)
 const SHELTER = { on: false, rIn: 2.05, rOut: 2.75, door: 1.0 };
 const VALVES = [{ x: 3.7, z: -0.6 }, { x: -3.7, z: -0.6 }];
 const STORM_WARN = 45, VALVE_TIME = 5, STORM_SAFE = 6;
+// ---- REAL DATA: live space weather and the real Moon clock
+// Live feeds, checked in a real browser in Nov 2026 (they allow any web page — even this file opened from disk — to read them):
+//   NASA CCMC DONKI (moved from kauai.ccmc.gsfc.nasa.gov on 30 Sep 2026, no key needed): solar flares (FLR), solar particle storms (SEP)
+//   NOAA SWPC: GOES-satellite proton flux (>=10 MeV) and the NOAA solar radiation storm level S0–S5
+const LIVE_DONKI = ['https://ccmc.gsfc.nasa.gov/DONKI/WS/get/', 'https://ccmc.gsfc.nasa.gov/DONKI-API/get/'];
+const LIVE_SWPC = { pro: 'https://services.swpc.noaa.gov/json/goes/primary/integral-protons-6-hour.json', scl: 'https://services.swpc.noaa.gov/products/noaa-scales.json' };
+const LIVE_KEY = 'moonGame.live.v1', LIVE_FRESH = 10 * 60e3, LIVE_GAME_MAX_AGE = 3 * 3600e3;
+const LIVE = { status: 'idle', at: 0, flares: null, sep: null, pfu: null, pfuAt: '', S: null, sProb: null };
+const liveSubs = new Set();
+let livePromise = null;
+const isoDay = ms => new Date(ms).toISOString().slice(0, 10);
+async function liveJSON(urls, ms = 9000) {
+  for (const u of [].concat(urls)) {
+    try {
+      const c = typeof AbortController !== 'undefined' ? new AbortController() : null, tm = setTimeout(() => { if (c) c.abort(); }, ms);
+      const r = await fetch(u, c ? { signal: c.signal } : {}); clearTimeout(tm);
+      if (!r.ok) continue;
+      const tx = await r.text(); return tx.trim() ? JSON.parse(tx) : [];
+    } catch (e) { /* no internet or blocked: try the next address */ }
+  }
+  return undefined;
+}
+function liveSave() { try { localStorage.setItem(LIVE_KEY, JSON.stringify({ at: LIVE.at, flares: LIVE.flares, sep: LIVE.sep, pfu: LIVE.pfu, pfuAt: LIVE.pfuAt, S: LIVE.S, sProb: LIVE.sProb })); } catch (e) { /* storage off */ } }
+function liveLoad() { try { const j = JSON.parse(localStorage.getItem(LIVE_KEY) || 'null'); if (j && j.at) Object.assign(LIVE, j); } catch (e) { /* storage off */ } }
+function liveEmit() { liveSubs.forEach(f => { try { f(); } catch (e) { /* ignore */ } }); }
+function fetchLive(force) {
+  if (livePromise) return livePromise;
+  if (typeof fetch === 'undefined') { LIVE.status = LIVE.at ? 'cached' : 'offline'; return Promise.resolve(); }
+  if (!LIVE.at) liveLoad();
+  if (!force && LIVE.at && Date.now() - LIVE.at < LIVE_FRESH) { LIVE.status = 'ok'; liveEmit(); return Promise.resolve(); }
+  if (LIVE.status !== 'ok') { LIVE.status = 'loading'; liveEmit(); }
+  const now = Date.now(), d7 = [isoDay(now - 7 * 864e5), isoDay(now)], d30 = [isoDay(now - 30 * 864e5), isoDay(now)];
+  const q = (t, d) => LIVE_DONKI.map(b => b + t + '?startDate=' + d[0] + '&endDate=' + d[1]);
+  livePromise = Promise.all([liveJSON(q('FLR', d7)), liveJSON(q('SEP', d30)), liveJSON(LIVE_SWPC.pro), liveJSON(LIVE_SWPC.scl)]).then(([flr, sep, pro, scl]) => {
+    let got = 0;
+    if (Array.isArray(flr)) { LIVE.flares = flr.map(f => ({ c: String(f.classType || ''), t: f.peakTime || f.beginTime || '' })).filter(f => /^[ABCMX]\d/.test(f.c)); got++; }
+    if (Array.isArray(sep)) { LIVE.sep = sep.map(e => e.eventTime || '').filter(Boolean).sort(); got++; }
+    if (Array.isArray(pro)) { const p = pro.filter(r => r && r.energy === '>=10 MeV' && isFinite(r.flux)); if (p.length) { LIVE.pfu = +p[p.length - 1].flux; LIVE.pfuAt = p[p.length - 1].time_tag; got++; } }
+    if (scl && scl['0'] && scl['0'].S) {
+      const lv = parseInt(scl['0'].S.Scale, 10), pr = scl['1'] && scl['1'].S ? parseInt(scl['1'].S.Prob, 10) : NaN;
+      LIVE.S = isFinite(lv) ? lv : null; LIVE.sProb = isFinite(pr) ? pr : null; got++;
+    }
+    if (got) { LIVE.at = Date.now(); LIVE.status = 'ok'; liveSave(); } else LIVE.status = LIVE.at ? 'cached' : 'offline';
+  }).catch(() => { LIVE.status = LIVE.at ? 'cached' : 'offline'; }).then(() => { livePromise = null; liveEmit(); });
+  return livePromise;
+}
+function liveLevel() {        // NOAA solar radiation storm level S0–S5 (NOAA's own value, else worked out from the GOES proton flux)
+  if (LIVE.S != null) return LIVE.S;
+  const p = LIVE.pfu; if (p == null) return 0;
+  return p >= 1e5 ? 5 : p >= 1e4 ? 4 : p >= 1e3 ? 3 : p >= 100 ? 2 : p >= 10 ? 1 : 0;
+}
+const liveFresh = () => LIVE.at > 0 && Date.now() - LIVE.at < LIVE_GAME_MAX_AGE;
+function liveRadFactor() {    // quiet Sun (under 1 proton/cm²/s/sr) = ×1 … big storm = up to ×4 more radiation outside
+  if (!liveFresh()) return 1;
+  const p = LIVE.pfu != null ? LIVE.pfu : [0.3, 10, 100, 1e3, 1e4, 1e5][liveLevel()];
+  return Math.max(1, Math.min(4, 1 + 0.75 * Math.log10(Math.max(p, 1))));
+}
+const flareSize = c => ({ X: 1e-4, M: 1e-5, C: 1e-6, B: 1e-7, A: 1e-8 })[c[0]] * (parseFloat(c.slice(1)) || 1);
+function liveBigFlare() { return LIVE.flares && LIVE.flares.length ? LIVE.flares.reduce((a, b) => flareSize(b.c) >= flareSize(a.c) ? b : a) : null; }
+// the real Moon clock: where the Sun stands over a lunar site at a given moment (low-precision Meeus formulas, good to about 1°)
+function moonSubsolarLon(ms) {
+  const T = (ms / 864e5 - 10957.5) / 36525;                       // centuries from J2000.0 (Unix day 10957.5 = JD 2451545.0)
+  const Lm = 218.3164477 + 481267.88123421 * T;                    // the Moon's mean longitude: its near side keeps facing this way
+  const M = (357.52911 + 35999.05029 * T) * Math.PI / 180;
+  const Ls = 280.46646 + 36000.76983 * T + 1.914602 * Math.sin(M) + 0.019993 * Math.sin(2 * M);   // the Sun's true longitude
+  return ((180 - (Lm - Ls)) % 360 + 540) % 360 - 180;            // sub-solar longitude on the Moon (degrees east)
+}
+function realMoonClock(lon, ms) { const H = ((lon - moonSubsolarLon(ms)) % 360 + 540) % 360 - 180; return (H / 360 + 1.5) % 1; }   // 0.25 sunrise · 0.5 noon · 0.75 sunset
+function divinerC(clock, lat) {   // NASA LRO Diviner fit: day 392 K × cos¼(sun angle); night cools from ~130 K to ~95 K before sunrise
+  const cz = Math.cos(lat * Math.PI / 180) * Math.cos((clock - 0.5) * 2 * Math.PI);
+  let K;
+  if (cz > 0) K = Math.max(392 * Math.pow(cz, 0.25), clock < 0.5 ? 95 : 130);
+  else { const f = Math.max(0, Math.min(1, ((clock - 0.75 + 1) % 1) / 0.5)); K = 95 + 35 * (1 - f) * (1 - f); }
+  return K - 273.15;
+}
+if (typeof window !== 'undefined') setTimeout(() => { fetchLive(); }, 0);   // start downloading while the menu is open
 // ---- real Moon map (NASA LRO mosaic, equirectangular, centred on 0° longitude)
 const MAP_SITES = [
   { key: 'site1', lat: 20.19, lon: 30.77, level: 1 },        // Taurus–Littrow, Apollo 17
@@ -236,6 +312,7 @@ const T = {
     narMoon: ['Hi there, astronaut! I\'m your mission guide. Look around — you\'re really standing on the Moon! But we have a problem: our Moon base is running low on air.', 'You know how on Earth you just breathe, without even thinking about it? Up here, there\'s no air at all. So your spacesuit carries its own oxygen — eight little blue capsules on your back. And the base has one big oxygen tank for everyone.', 'Now here\'s something amazing. Those glowing rocks out there are almost half oxygen! You can\'t see it, because it\'s locked inside the stone. But our oxygen maker can heat the rocks and pull it out.', 'So your job is simple. Find the glowing rocks, bring them home, and put them into the oxygen maker. Every rock fills the base tank a little more. Let\'s get it all the way to one hundred percent!', 'But be careful! Keep an eye on your oxygen capsules. The little timer tells you how many minutes of air you have left. And see that white line? That\'s how much air you need to get back home. If your oxygen gets close to the line… turn around!', 'Here\'s a tip. When you run, you breathe much faster, so your air disappears quickly. The rover is the smart choice. It\'s fast, and you use way less air while driving.', 'When you\'re back at the base, walk to the yellow refill station in the airlock and press E. It fills your suit from the big tank. So every refill uses some of the base\'s oxygen. Don\'t waste it!', 'To move, use W, A, S and D. Space makes you jump — and on the Moon, you jump really high! Press E to pick up rocks and to climb into the rover.', 'Okay, astronaut, I think you\'re ready. Press Begin, and let\'s go save our base!'],
     narShadow: ['Hello again, astronaut! We\'ve got an emergency. Our radio tower broke down, deep inside a dark crater.', 'Now, you might think shade is a nice, cool place to rest. On the Moon, it\'s not! In the sunshine your suit gets super hot. But step into that shadow, and it\'s minus one hundred seventy-three degrees. Brrr! You would freeze in minutes.', 'Why is it so extreme? Because the Moon has no air. On Earth, air works like a giant invisible blanket that keeps the heat in. The Moon doesn\'t have that blanket at all.', 'So here\'s our clever plan. Drive the rover to the crater. On its sunny edge, you\'ll see three glowing spots. Walk to each one and press E to set up a giant mirror.', 'The mirrors catch the sunlight and bounce it down into the dark crater. That makes a warm, bright spot right around the tower. Pretty smart, right?', 'Then climb down into the warm light and press E at the tower to fix it. If you start getting cold, step away and warm up. The repair will wait for you.', 'Use W, A, S and D to move, Space to jump, and E to use things. Press C if you want to change the camera.', 'Ready? Press Begin, and let\'s bring that signal back!'],
     narStorm: ['Hey, astronaut! You\'re outside near the base, and everything looks calm… but not for long.', 'Our scientists just spotted a huge explosion on the Sun! In a few moments a red warning will pop up, and you\'ll have forty-five seconds to get to safety.', 'A solar storm sends out tiny particles that zoom right through spacesuits and thin walls. If it catches you outside, your screen fills with static, the radiation counter clicks like crazy, and your health drops fast.', 'So when that warning appears… run! Hold Shift and head straight for the base. Right in the middle, you\'ll find the round Storm Shelter.', 'The shelter\'s walls are hollow, like a big empty glass. Find the two water valves, and hold E on each one for five seconds to fill the walls with water.', 'Why water? Because water is full of hydrogen, and hydrogen is great at soaking up those storm particles. It actually stops radiation better than metal!', 'Once both walls are full, step inside. You\'ll be safe, and your health will come back.', 'Okay, stay alert! Press Begin, and good luck!'],
+    lv_title: 'Live from NASA · real data right now', lv_loading: 'Connecting to NASA…', lv_off: 'No internet, so the game uses its own pretend Sun. Connect to the internet to see the real one!', lv_sun: 'The real Sun now', lv_calm: 'calm, no radiation storm', lv_storm: 'RADIATION STORM, level S{n}!', lv_flare: 'Biggest solar flare this week', lv_noflare: 'only tiny ones', flb_X: 'huge', flb_M: 'medium', flb_C: 'small', flb_B: 'tiny', flb_A: 'tiny', fls_X: 'huge', fls_M: 'medium', fls_C: 'small', fls_B: 'tiny', fls_A: 'tiny', lv_sep: 'Radiation storms, last 30 days', lv_none: 'none', lv_latest: 'last one {d}', lv_moon: 'Real Moon time at {site}', lv_ground: 'ground {t}', lv_pole: 'near the South Pole the Sun always stays low', lv_real_off: '🌙 Play in real Moon time', lv_real_on: '🌙 Real Moon time: ON', lv_src: 'Data: NASA CCMC DONKI · NOAA SWPC (GOES satellites) · NASA LRO Diviner temperatures', lv_upd: 'updated {t}', lv_cached: 'saved {d}, no internet now', lv_real_tag: 'REAL', hud_sun: 'Real Sun', hud_calm: 'calm', hud_storm: 'storm S{n}', lv_say_calm: 'And here\'s something real, straight from NASA: right now the real Sun is calm, with no radiation storm.', lv_say_storm: 'And here\'s something real, straight from NASA: right now there is a real radiation storm, level S{n}!', lv_say_flare: 'Its biggest flare this week was a {s} one.', lv_say_moon: 'And on the real Moon, at our landing site, it\'s {ph} right now.', st_real: 'This is real: right now a level S{n} radiation storm is hitting space around Earth and the Moon!', lv_win_calm: 'Real Sun right now (NASA and NOAA data): calm, no radiation storm.', lv_win_storm: 'Real Sun right now (NASA and NOAA data): a level S{n} radiation storm is happening!', lv_win_last: 'The last real radiation storm was on {d}.', lv_win_none: 'There were no real radiation storms in the last 30 days.',
     clock: 'Lunar time', t_out: 'Outside', t_suit: 'Suit', ph_day: 'Day', ph_night: 'Night', ph_dawn: 'Sunrise', ph_dusk: 'Sunset',
     w_cold: 'SUIT FREEZING — get into sunlight or the mirror beam!', w_hot: 'SUIT OVERHEATING — get into shade or the rover!',
     w_dark: 'Crater shadow: no air to hold heat — it is −173 °C! Place mirrors on the rim.',
@@ -294,6 +371,7 @@ const T = {
     narMoon: ['Salom, kosmonavt! Men sizning missiya yo‘lboshchingizman. Atrofga qarang — siz haqiqatan ham Oyda turibsiz! Lekin bizda bir muammo bor: Oydagi bazamizda havo kamayib qoldi.', 'Yerda nafas olish haqida o‘ylamaysiz ham, to‘g‘rimi? Bu yerda esa umuman havo yo‘q. Shuning uchun kostyumingiz o‘z kislorodini olib yuradi — orqangizda sakkizta kichkina ko‘k kapsula bor. Bazada esa hamma uchun bitta katta kislorod baki bor.', 'Endi qiziq narsani aytaman. Tashqaridagi yonib turgan toshlarning deyarli yarmi kisloroddan iborat! Uni ko‘rmaysiz, chunki u tosh ichiga qamalgan. Ammo kislorod mashinamiz toshlarni qizdirib, uni ajratib oladi.', 'Demak, vazifangiz oddiy. Yonib turgan toshlarni toping, bazaga olib keling va kislorod mashinasiga soling. Har bir tosh bakni biroz to‘ldiradi. Keling, uni yuz foizgacha to‘ldiramiz!', 'Lekin ehtiyot bo‘ling! Kislorod kapsulalaringizni kuzatib boring. Kichkina taymer havo necha daqiqaga yetishini ko‘rsatadi. Oq chiziqni ko‘ryapsizmi? Bu uyga qaytish uchun kerak bo‘ladigan havo. Kislorod chiziqqa yaqinlashsa… darhol orqaga qayting!', 'Bir maslahat. Yugurganingizda juda tez nafas olasiz, shuning uchun havo tez tugaydi. Rover esa aqlli tanlov. U tez yuradi va haydaganda havo ancha kam sarflanadi.', 'Bazaga qaytganingizda shlyuzdagi sariq to‘ldirish stansiyasiga borib, E ni bosing. U kostyumingizni katta bakdan to‘ldiradi. Demak, har bir to‘ldirish baza kislorodini sarflaydi. Uni isrof qilmang!', 'Yurish uchun W, A, S va D tugmalarini ishlating. Probel sakratadi — Oyda esa juda baland sakraysiz! Tosh olish va roverga o‘tirish uchun E ni bosing.', 'Xo‘sh, kosmonavt, menimcha, siz tayyorsiz. Boshlash tugmasini bosing va bazamizni qutqaramiz!'],
     narShadow: ['Yana salom, kosmonavt! Bizda favqulodda holat. Radio minoramiz chuqur va qorong‘i krater ichida buzilib qoldi.', 'Soya dam olish uchun yoqimli salqin joy deb o‘ylashingiz mumkin. Oyda unday emas! Quyoshda kostyumingiz juda qizib ketadi. Soyaga kirsangiz esa minus bir yuz yetmish uch daraja. Brr! Bir necha daqiqada muzlab qolasiz.', 'Nega bunchalik keskin? Chunki Oyda havo yo‘q. Yerda havo ulkan ko‘rinmas ko‘rpa kabi issiqlikni ushlab turadi. Oyda esa bunday ko‘rpa umuman yo‘q.', 'Mana bizning aqlli rejamiz. Roverda kraterga boring. Uning quyoshli qirg‘og‘ida uchta yonib turgan joyni ko‘rasiz. Har biriga borib, E ni bosing va ulkan oyna o‘rnating.', 'Oynalar quyosh nurini ushlab, qorong‘i kraterga qaytaradi. Shunda minora atrofida iliq, yorug‘ joy hosil bo‘ladi. Ajoyib, to‘g‘rimi?', 'Keyin iliq nurga tushing va minora yonida E ni bosib, uni tuzating. Agar sovuq bo‘la boshlasa, chetga chiqib isining. Ta’mir sizni kutib turadi.', 'Yurish uchun W, A, S va D, sakrash uchun Probel, narsalardan foydalanish uchun E. Kamerani almashtirish uchun C ni bosing.', 'Tayyormisiz? Boshlash tugmasini bosing va aloqani qayta tiklaymiz!'],
     narStorm: ['Hoy, kosmonavt! Siz baza yaqinida, tashqaridasiz va hammasi tinchga o‘xshaydi… lekin uzoqqa emas.', 'Olimlarimiz hozirgina Quyoshda ulkan portlashni payqashdi! Bir ozdan keyin qizil ogohlantirish chiqadi va xavfsiz joyga yetib olish uchun qirq besh soniyangiz bo‘ladi.', 'Quyosh bo‘roni mayda zarralarni chiqaradi, ular kostyum va yupqa devorlardan bemalol o‘tib ketadi. Agar bo‘ron sizni tashqarida ushlasa, ekranni oq shovqin qoplaydi, radiatsiya hisoblagichi tinmay chiqillaydi va salomatlik tez kamayadi.', 'Shuning uchun ogohlantirish chiqishi bilan… yuguring! Shift ni bosib turing va to‘g‘ri bazaga boring. Uning o‘rtasida dumaloq Bo‘ron boshpanasini topasiz.', 'Boshpana devorlari ichi bo‘sh, xuddi katta bo‘sh stakandek. Ikkita suv jo‘mragini toping va devorlarni suvga to‘ldirish uchun har birida E ni besh soniya bosib turing.', 'Nega aynan suv? Chunki suvda vodorod ko‘p, vodorod esa bo‘ron zarralarini juda yaxshi yutadi. U radiatsiyani hatto metalldan ham yaxshiroq to‘xtatadi!', 'Ikkala devor to‘lgach, ichkariga kiring. Siz xavfsiz bo‘lasiz va salomatligingiz tiklanadi.', 'Xo‘sh, hushyor bo‘ling! Boshlash tugmasini bosing, omad!'],
+    lv_title: 'NASAdan jonli · hozirgi haqiqiy ma’lumotlar', lv_loading: 'NASAga ulanmoqda…', lv_off: 'Internet yo‘q, shuning uchun o‘yin o‘zining xayoliy Quyoshidan foydalanadi. Haqiqiysini ko‘rish uchun internetga ulaning!', lv_sun: 'Haqiqiy Quyosh hozir', lv_calm: 'tinch, radiatsiya bo‘roni yo‘q', lv_storm: 'RADIATSIYA BO‘RONI, S{n} daraja!', lv_flare: 'Bu haftaning eng katta quyosh chaqnashi', lv_noflare: 'faqat juda kichiklari', flb_X: 'ulkan', flb_M: 'o‘rtacha', flb_C: 'kichik', flb_B: 'juda kichik', flb_A: 'juda kichik', fls_X: 'ulkan', fls_M: 'o‘rtacha', fls_C: 'kichik', fls_B: 'juda kichik', fls_A: 'juda kichik', lv_sep: 'Radiatsiya bo‘ronlari, so‘nggi 30 kun', lv_none: 'yo‘q', lv_latest: 'oxirgisi {d}', lv_moon: 'Haqiqiy Oy vaqti: {site}', lv_ground: 'tuproq {t}', lv_pole: 'janubiy qutb yaqinida Quyosh doim past turadi', lv_real_off: '🌙 Haqiqiy Oy vaqtida o‘ynash', lv_real_on: '🌙 Haqiqiy Oy vaqti: YOQILGAN', lv_src: 'Ma’lumotlar: NASA CCMC DONKI · NOAA SWPC (GOES sun’iy yo‘ldoshlari) · NASA LRO Diviner haroratlari', lv_upd: 'yangilandi {t}', lv_cached: 'saqlangan: {d}, hozir internet yo‘q', lv_real_tag: 'REAL', hud_sun: 'Haqiqiy Quyosh', hud_calm: 'tinch', hud_storm: 'bo‘ron S{n}', lv_say_calm: 'Mana haqiqiy narsa, to‘g‘ridan-to‘g‘ri NASAdan: hozir haqiqiy Quyosh tinch, radiatsiya bo‘roni yo‘q.', lv_say_storm: 'Mana haqiqiy narsa, to‘g‘ridan-to‘g‘ri NASAdan: hozir haqiqiy radiatsiya bo‘roni bo‘lyapti, S{n} daraja!', lv_say_flare: 'Bu haftadagi eng katta chaqnashi {s} bo‘ldi.', lv_say_moon: 'Haqiqiy Oyda esa, bizning qo‘nish joyimizda, hozir {ph}.', st_real: 'Bu haqiqiy: hozir Yer va Oy atrofidagi koinotda S{n} darajali radiatsiya bo‘roni bo‘lyapti!', lv_win_calm: 'Haqiqiy Quyosh hozir (NASA va NOAA ma’lumotlari): tinch, radiatsiya bo‘roni yo‘q.', lv_win_storm: 'Haqiqiy Quyosh hozir (NASA va NOAA ma’lumotlari): S{n} darajali radiatsiya bo‘roni bo‘lyapti!', lv_win_last: 'Oxirgi haqiqiy radiatsiya bo‘roni: {d}.', lv_win_none: 'So‘nggi 30 kunda haqiqiy radiatsiya bo‘ronlari bo‘lmagan.',
     clock: 'Oy vaqti', t_out: 'Tashqarida', t_suit: 'Kostyum', ph_day: 'Kunduz', ph_night: 'Tun', ph_dawn: 'Tong', ph_dusk: 'Shom',
     w_cold: 'KOSTYUM MUZLAYAPTI — quyosh nuriga yoki oyna nuriga chiqing!', w_hot: 'KOSTYUM O‘TA QIZIYAPTI — soyaga yoki roverga o‘ting!',
     w_dark: 'Krater soyasi: issiqlikni ushlab turadigan havo yo‘q — −173 °C! Qirg‘oqqa oynalar qo‘ying.',
@@ -352,6 +430,7 @@ const T = {
     narMoon: ['Привет, астронавт! Я твой гид по миссии. Оглянись — ты правда стоишь на Луне! Но у нас проблема: на нашей лунной базе заканчивается воздух.', 'На Земле ты просто дышишь и даже не думаешь об этом, правда? А здесь воздуха нет совсем. Поэтому скафандр носит свой кислород — восемь маленьких синих капсул у тебя за спиной. А у базы есть один большой кислородный бак на всех.', 'А теперь кое-что удивительное. Светящиеся камни вокруг почти наполовину состоят из кислорода! Его не видно, ведь он заперт внутри камня. Но наша кислородная машина умеет нагреть камни и достать его оттуда.', 'Так что задача простая. Найди светящиеся камни, привези их домой и загрузи в кислородную машину. Каждый камень немного наполняет бак базы. Давай наполним его до ста процентов!', 'Но будь осторожен! Следи за кислородными капсулами. Маленький таймер показывает, на сколько минут хватит воздуха. Видишь белую черту? Столько воздуха нужно, чтобы вернуться домой. Если кислород приближается к черте… сразу поворачивай назад!', 'Вот совет. Когда бежишь, ты дышишь гораздо чаще, и воздух быстро заканчивается. Ровер — умный выбор. Он быстрый, и в нём ты тратишь намного меньше воздуха.', 'Когда вернёшься на базу, подойди к жёлтой станции заправки в шлюзе и нажми E. Она заправит скафандр из большого бака. Значит, каждая заправка тратит кислород базы. Не трать его зря!', 'Чтобы ходить, используй W, A, S и D. Пробел — это прыжок, а на Луне ты прыгаешь очень высоко! Нажимай E, чтобы поднять камень и сесть в ровер.', 'Ну что, астронавт, похоже, ты готов. Нажми «Начать», и вперёд — спасать нашу базу!'],
     narShadow: ['Снова привет, астронавт! У нас срочное дело. Наша радиобашня сломалась глубоко внутри тёмного кратера.', 'Ты, наверное, думаешь, что тень — приятное прохладное место для отдыха. Но не на Луне! На солнце скафандр сильно нагревается. А шагнёшь в тень — там минус сто семьдесят три градуса. Бррр! Замёрзнешь за считанные минуты.', 'Почему такие крайности? Потому что на Луне нет воздуха. На Земле воздух работает как огромное невидимое одеяло и удерживает тепло. А у Луны такого одеяла нет совсем.', 'Вот наш хитрый план. Поезжай на ровере к кратеру. На его солнечном краю ты увидишь три светящихся места. Подойди к каждому и нажми E, чтобы поставить гигантское зеркало.', 'Зеркала ловят солнечный свет и отражают его вниз, в тёмный кратер. Так вокруг башни появляется тёплое светлое пятно. Здорово придумано, правда?', 'Потом спустись в тёплый свет и нажми E у башни, чтобы её починить. Если станет холодно, отойди и согрейся. Ремонт тебя подождёт.', 'Ходи клавишами W, A, S и D, прыгай пробелом, а клавишей E пользуйся предметами. Нажми C, если хочешь сменить камеру.', 'Готов? Нажми «Начать», и вернём связь!'],
     narStorm: ['Эй, астронавт! Ты снаружи, рядом с базой, и всё вроде спокойно… но ненадолго.', 'Наши учёные только что заметили огромный взрыв на Солнце! Скоро появится красное предупреждение, и у тебя будет сорок пять секунд, чтобы укрыться.', 'Солнечная буря выбрасывает крошечные частицы, которые пролетают прямо сквозь скафандр и тонкие стены. Если она застанет тебя снаружи, экран покроют помехи, счётчик радиации затрещит без остановки, а здоровье будет быстро падать.', 'Поэтому, как только появится предупреждение… беги! Держи Shift и направляйся прямо на базу. В самом центре ты найдёшь круглое штормовое убежище.', 'Стены убежища полые, как большой пустой стакан. Найди два водяных вентиля и держи E на каждом по пять секунд, чтобы наполнить стены водой.', 'Почему именно вода? Потому что в воде много водорода, а водород отлично поглощает частицы бури. Он задерживает радиацию даже лучше металла!', 'Когда обе стены заполнены, заходи внутрь. Ты будешь в безопасности, и здоровье восстановится.', 'Ну что, будь начеку! Нажми «Начать», и удачи!'],
+    lv_title: 'Прямо из NASA · настоящие данные', lv_loading: 'Подключаемся к NASA…', lv_off: 'Нет интернета, поэтому в игре своё придуманное Солнце. Подключись к интернету, чтобы увидеть настоящее!', lv_sun: 'Настоящее Солнце сейчас', lv_calm: 'спокойно, радиационной бури нет', lv_storm: 'РАДИАЦИОННАЯ БУРЯ, уровень S{n}!', lv_flare: 'Самая большая вспышка за неделю', lv_noflare: 'только совсем маленькие', flb_X: 'огромная', flb_M: 'средняя', flb_C: 'маленькая', flb_B: 'крошечная', flb_A: 'крошечная', fls_X: 'огромной', fls_M: 'средней', fls_C: 'маленькой', fls_B: 'крошечной', fls_A: 'крошечной', lv_sep: 'Радиационные бури за 30 дней', lv_none: 'не было', lv_latest: 'последняя {d}', lv_moon: 'Настоящее лунное время: {site}', lv_ground: 'грунт {t}', lv_pole: 'у южного полюса Солнце всегда стоит низко', lv_real_off: '🌙 Играть в настоящем лунном времени', lv_real_on: '🌙 Настоящее лунное время: ВКЛ', lv_src: 'Данные: NASA CCMC DONKI · NOAA SWPC (спутники GOES) · температуры NASA LRO Diviner', lv_upd: 'обновлено {t}', lv_cached: 'сохранено {d}, сейчас нет интернета', lv_real_tag: 'РЕАЛ', hud_sun: 'Настоящее Солнце', hud_calm: 'спокойно', hud_storm: 'буря S{n}', lv_say_calm: 'А вот кое-что настоящее, прямо из NASA: сейчас настоящее Солнце спокойно, радиационной бури нет.', lv_say_storm: 'А вот кое-что настоящее, прямо из NASA: сейчас идёт настоящая радиационная буря, уровень S{n}!', lv_say_flare: 'Самая большая вспышка на этой неделе была {s}.', lv_say_moon: 'А на настоящей Луне, в месте нашей посадки, сейчас {ph}.', st_real: 'Это по-настоящему: прямо сейчас в космосе вокруг Земли и Луны идёт радиационная буря уровня S{n}!', lv_win_calm: 'Настоящее Солнце сейчас (данные NASA и NOAA): спокойно, радиационной бури нет.', lv_win_storm: 'Настоящее Солнце сейчас (данные NASA и NOAA): идёт радиационная буря уровня S{n}!', lv_win_last: 'Последняя настоящая радиационная буря была {d}.', lv_win_none: 'За последние 30 дней настоящих радиационных бурь не было.',
     clock: 'Лунное время', t_out: 'Снаружи', t_suit: 'Скафандр', ph_day: 'День', ph_night: 'Ночь', ph_dawn: 'Рассвет', ph_dusk: 'Закат',
     w_cold: 'СКАФАНДР ЗАМЕРЗАЕТ — выйдите на солнце или в луч зеркала!', w_hot: 'СКАФАНДР ПЕРЕГРЕВАЕТСЯ — уйдите в тень или в ровер!',
     w_dark: 'Тень кратера: нет воздуха, чтобы удерживать тепло — здесь −173 °C! Поставьте зеркала на кромке.',
@@ -1095,6 +1174,7 @@ const CSS = `
 .mg-kid-box{background:rgba(15,28,44,.7);border:1px solid rgba(102,230,255,.25);border-radius:14px;padding:12px 14px}
 .mg-kid-box h3{margin:0 0 6px;font-size:14px;color:#66e6ff}
 .mg-kid-box p{margin:0;font-size:12.8px;line-height:1.5;color:#E2E2E2}
+.mg-live{background:rgba(15,28,44,.62);border:1px solid rgba(183,206,206,.28);border-radius:14px;padding:10px 14px 8px;margin:0 0 14px;text-align:left;font-size:13px;line-height:1.45;transition:background .25s,border-color .25s}.mg-live.on{background:rgba(183,206,206,.2);border-color:#B7CECE}.mg-live .hd{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}.mg-live .hd b{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#B7CECE}.mg-live .dot{flex:none;width:9px;height:9px;border-radius:50%;background:#6E7E85}.mg-live .dot.ok{background:#6ee7a0;box-shadow:0 0 8px #6ee7a0;animation:mgLv 1.6s infinite}.mg-live .dot.old{background:#ffc46b}.mg-live .dot.ld{background:#66e6ff;animation:mgLv .8s infinite}@keyframes mgLv{50%{opacity:.3}}.mg-live .rw{display:grid;grid-template-columns:22px minmax(0,1fr) minmax(0,1.25fr);gap:8px;padding:4px 0;border-top:1px solid rgba(255,255,255,.07)}.mg-live .rw:first-of-type{border-top:0}.mg-live .k{color:#BBBAC6}.mg-live .v{color:#E2E2E2;text-align:right}.mg-live .good{color:#6ee7a0}.mg-live .bad{color:#ff7a5c}.mg-live .mut{margin:2px 0 6px;color:#BBBAC6}.mg-live .src{margin:6px 0 0;font-size:10.5px;color:#8b99a0}.mg-live .lvbtn{display:block;margin:8px 0 2px;padding:7px 14px;font-size:12.5px}.mg-live .lvbtn.on{background:#B7CECE;color:#1C0F13}.mg-env .lv{display:flex;justify-content:space-between;gap:6px;margin-top:6px;padding-top:5px;border-top:1px solid rgba(255,255,255,.1);color:#BBBAC6;font-size:11.5px}.mg-env .lv b{font-weight:700}
 @media (max-width:900px){.mg-eclss{display:none}.mg-kid-grid{grid-template-columns:1fr}}
 .mg-panel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(390px,92vw);padding:16px 18px 14px;display:none;z-index:5}
 .mg-panel h3{margin:0 0 4px;font-size:15px;letter-spacing:.08em;color:#E2E2E2}.mg-panel .sub{margin:0 0 8px;font-size:12px;color:#BBBAC6}
@@ -1275,8 +1355,9 @@ function createGame(opts) {
   if (MISSION || STORM) bar.tank.row.style.display = 'none';
   const inv = el('div', 'mg-inv mg-glass'); root.appendChild(inv);
   const tipEl = el('div', 'mg-tip mg-glass'); root.appendChild(tipEl);
-  const env = el('div', 'mg-env mg-glass', '<div class="clk"><b></b><span></span></div><div class="tr"><span class="a"></span><b class="av"></b></div><div class="tr"><span class="u"></span><b class="uv"></b></div><div class="tb"><span></span></div>'); root.appendChild(env);
+  const env = el('div', 'mg-env mg-glass', '<div class="clk"><b></b><span></span></div><div class="tr"><span class="a"></span><b class="av"></b></div><div class="tr"><span class="u"></span><b class="uv"></b></div><div class="tb"><span></span></div><div class="lv"><span></span><b></b></div>'); root.appendChild(env);
   const envClk = env.querySelector('.clk b'), envPh = env.querySelector('.clk span'), envAn = env.querySelector('.a'), envAv = env.querySelector('.av'), envUn = env.querySelector('.u'), envUv = env.querySelector('.uv'), envBar = env.querySelector('.tb span');
+  const envLv = env.querySelector('.lv'), envLvN = envLv.querySelector('span'), envLvV = envLv.querySelector('b');
   const dcache = new WeakMap();   // only touch the DOM when a value really changed
   function dset(node, prop, val) {
     let o = dcache.get(node); if (!o) { o = {}; dcache.set(node, o); }
@@ -1337,7 +1418,7 @@ function createGame(opts) {
   function stopSpeech() {
     spkTok++; speaking = false;
     if (synth) { try { synth.cancel(); } catch (e) { /* ignore */ } }
-    ovHelp.querySelectorAll('.mg-steps li.on').forEach(li => li.classList.remove('on')); setReadBtn();
+    ovHelp.querySelectorAll('.mg-steps li.on, .mg-live.on').forEach(li => li.classList.remove('on')); setReadBtn();
   }
   function speakLines(lines, onLine) {
     if (!synth || voiceVol <= 0.001) return;
@@ -1363,10 +1444,14 @@ function createGame(opts) {
     setTimeout(() => say(0), 80);
   }
   function startBriefing() {
-    const items = ovHelp.querySelectorAll('.mg-steps li');
-    speakLines(T[lang][BK()[2]], i => {
-      items.forEach((li, k) => li.classList.toggle('on', k === i));
-      if (i >= 0 && items[i]) items[i].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    const items = ovHelp.querySelectorAll('.mg-steps li'), box = ovHelp.querySelector('.mg-live');
+    const nar = T[lang][BK()[2]].slice(), n = nar.length, extra = liveSay();
+    if (extra) nar.splice(n - 1, 0, extra);
+    speakLines(nar, i => {
+      const k = extra && i === n - 1 ? -2 : extra && i >= n ? i - 1 : i;
+      items.forEach((li, j) => li.classList.toggle('on', j === k));
+      if (box) box.classList.toggle('on', k === -2);
+      const tgt = k === -2 ? box : items[k]; if (i >= 0 && tgt) tgt.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });
   }
 
@@ -1374,19 +1459,21 @@ function createGame(opts) {
   function applyDom() {
     BARS.forEach(([k]) => { bar[k].n.textContent = tr(k); });
     pauseBtn.title = tr('paused');
-    ovHelp.innerHTML = '<div class="mg-card mg-glass mg-brief"><h2>' + tr('helpTitle') + '</h2><div class="mg-sub">' + tr(BK()[0]) + '</div><ol class="mg-steps">' +
+    ovHelp.innerHTML = '<div class="mg-card mg-glass mg-brief"><h2>' + tr('helpTitle') + '</h2><div class="mg-sub">' + tr(BK()[0]) + '</div><div class="mg-live"></div><ol class="mg-steps">' +
       T[lang][BK()[1]].map(h => '<li>' + h + '</li>').join('') + '</ol><details class="mg-ctl"><summary>' + tr('controls') + '</summary><ul>' +
       T[lang].help.map(h => '<li>' + h + '</li>').join('') + '</ul></details><div class="mg-btns"><button class="mg-btn" id="rd" type="button"></button><button class="mg-btn pri" id="go" type="button">' + tr('begin') + '</button></div></div>';
     ovHelp.querySelector('#go').onclick = () => { stopSpeech(); ovHelp.style.display = 'none'; sfx.resume(); S.paused = false; };
     ovHelp.querySelector('#rd').onclick = () => { if (speaking) stopSpeech(); else startBriefing(); };
     setReadBtn();
     ovPause.innerHTML = '<div class="mg-card mg-glass"><h2>' + tr('paused') + '</h2><button class="mg-btn pri" id="r" type="button">' + tr('resume') +
-      '</button><button class="mg-btn" id="q" type="button">' + tr('quit') + '</button></div>';
+      '</button>' + (MISSION ? '' : '<button class="mg-btn" data-rt type="button"></button>') + '<button class="mg-btn" id="q" type="button">' + tr('quit') + '</button></div>';
     ovPause.querySelector('#r').onclick = () => setPause(false);
+    { const pb = ovPause.querySelector('[data-rt]'); if (pb) pb.onclick = () => setRealMode(!realMode); }
     ovPause.querySelector('#q').onclick = exit;
     load.textContent = tr('loading');
     mapBtn.textContent = '🗺 ' + tr('map_btn'); mapBtn.title = tr('help_map');
     buildMap();
+    renderLive();
   }
   // ---------- real Moon map
   const MAP_URL = opts.mapUrl || window.MOON_MAP_URL || '';
@@ -1394,6 +1481,58 @@ function createGame(opts) {
   const fmtLat = v => Math.abs(v).toFixed(1) + '° ' + (v >= 0 ? 'N' : 'S'), fmtLon = v => Math.abs(v).toFixed(1) + '° ' + (v >= 0 ? 'E' : 'W');
   const mapPos = (lat, lon) => ({ x: (lon + 180) / 360 * 100, y: clamp((90 - lat) / 180 * 100, 3, 97) });
   function hereKey() { return STORM ? 'site3' : MISSION ? 'site2' : 'site1'; }
+  // ---------- live NASA / NOAA data and the real Moon clock
+  const SITE = MAP_SITES.find(si => si.key === hereKey()) || MAP_SITES[0];
+  let realMode = !MISSION && (() => { try { return localStorage.getItem('moonGame.realTime') === '1'; } catch (e) { return false; } })(), realT = 0;
+  const MON = { en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], uz: ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr'], ru: ['янв.', 'февр.', 'марта', 'апр.', 'мая', 'июня', 'июля', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.'] };
+  const fmtDay = iso => { const d = new Date(iso); if (isNaN(d)) return String(iso).slice(5, 10); const m = MON[lang][d.getUTCMonth()]; return lang === 'uz' ? d.getUTCDate() + '-' + m : d.getUTCDate() + ' ' + m; };
+  const clockStr = c => { const h = c * 24, hh = Math.floor(h), mm = Math.floor((h - hh) * 60); return pad2(hh) + ':' + pad2(mm); };
+  const phaseOf = c => { const sn = Math.sin(SUN_MAX * Math.sin(Math.PI * 2 * (c - 0.25))); return sn > 0.15 ? 'ph_day' : sn < -0.06 ? 'ph_night' : c < 0.5 ? 'ph_dawn' : 'ph_dusk'; };
+  function moonNow() { const c = realMoonClock(SITE.lon, Date.now()); return { c, ph: phaseOf(c), t: divinerC(c, SITE.lat) }; }
+  const realStorm = () => liveFresh() && liveLevel() > 0;
+  const stormMul = () => realStorm() ? 1 + 0.15 * Math.min(liveLevel() - 1, 4) : 1;     // a real S2+ storm looks and sounds stronger
+  const lvRow = (ic, k, v) => '<div class="rw"><span class="ic">' + ic + '</span><span class="k">' + k + '</span><span class="v">' + v + '</span></div>';
+  function liveHTML() {
+    const L = LIVE, has = L.at > 0;
+    let h = '<div class="hd"><b>📡 ' + tr('lv_title') + '</b><i class="dot ' + (L.status === 'ok' ? 'ok' : L.status === 'loading' ? 'ld' : has ? 'old' : 'off') + '"></i></div>';
+    if (!has) h += '<p class="mut">' + tr(L.status === 'offline' || L.status === 'cached' ? 'lv_off' : 'lv_loading') + '</p>';
+    else {
+      const lv = liveLevel(), bf = liveBigFlare();
+      h += lvRow('☀', tr('lv_sun'), lv > 0 ? '<b class="bad">' + tr('lv_storm', { n: lv }) + '</b>' : '<b class="good">' + tr('lv_calm') + '</b>');
+      if (L.flares) h += lvRow('💥', tr('lv_flare'), bf ? tr('flb_' + bf.c[0]) + ' (' + bf.c + ') · ' + fmtDay(bf.t) : tr('lv_noflare'));
+      if (L.sep) h += lvRow('☢', tr('lv_sep'), L.sep.length ? L.sep.length + ' · ' + tr('lv_latest', { d: fmtDay(L.sep[L.sep.length - 1]) }) : tr('lv_none'));
+    }
+    if (MISSION) h += lvRow('🌙', tr('lv_moon', { site: tr(hereKey() + '_name') }), tr('lv_pole'));
+    else { const m = moonNow(); h += lvRow('🌙', tr('lv_moon', { site: tr(hereKey() + '_name') }), tr(m.ph) + ' (' + clockStr(m.c) + ') · ' + tr('lv_ground', { t: fmtT(m.t) })); }
+    if (!MISSION) h += '<button class="mg-btn lvbtn' + (realMode ? ' on' : '') + '" type="button" data-rt>' + tr(realMode ? 'lv_real_on' : 'lv_real_off') + '</button>';
+    h += '<p class="src">' + tr('lv_src') + (has ? ' · ' + (L.status === 'ok' || L.status === 'loading' ? tr('lv_upd', { t: new Date(L.at).toISOString().slice(11, 16) + ' UTC' }) : tr('lv_cached', { d: fmtDay(new Date(L.at).toISOString()) })) : '') + '</p>';
+    return h;
+  }
+  function renderLive() {
+    const b = ovHelp.querySelector('.mg-live');
+    if (b) { const on = b.classList.contains('on'); b.innerHTML = liveHTML(); b.classList.toggle('on', on); const bt = b.querySelector('[data-rt]'); if (bt) bt.onclick = () => setRealMode(!realMode); }
+    const pb = ovPause.querySelector('[data-rt]'); if (pb) pb.textContent = tr(realMode ? 'lv_real_on' : 'lv_real_off');
+  }
+  function setRealMode(on) {
+    realMode = !!on && !MISSION;
+    try { localStorage.setItem('moonGame.realTime', realMode ? '1' : '0'); } catch (e) { /* storage off */ }
+    if (realMode) { S.clock = realMoonClock(SITE.lon, Date.now()); realT = 5; updateSun(); S.amb = divinerC(S.clock, SITE.lat); }
+    renderLive();
+  }
+  function liveSay() {
+    if (!(LIVE.at > 0)) return '';
+    const lv = liveLevel(), bf = liveBigFlare();
+    let t = lv > 0 ? tr('lv_say_storm', { n: lv }) : tr('lv_say_calm');
+    if (bf) t += ' ' + tr('lv_say_flare', { s: tr('fls_' + bf.c[0]) });
+    if (!MISSION) t += ' ' + tr('lv_say_moon', { ph: tr(moonNow().ph).toLowerCase() });
+    return t;
+  }
+  function liveLine() {
+    if (!(LIVE.at > 0)) return '';
+    const lv = liveLevel(); let t = ' ' + (lv > 0 ? tr('lv_win_storm', { n: lv }) : tr('lv_win_calm'));
+    if (LIVE.sep) t += ' ' + (LIVE.sep.length ? tr('lv_win_last', { d: fmtDay(LIVE.sep[LIVE.sep.length - 1]) }) : tr('lv_win_none'));
+    return t;
+  }
   function siteInfo(si) {
     if (si.apollo) return { name: 'Apollo ' + si.apollo, co: fmtLat(si.lat) + ', ' + fmtLon(si.lon), text: tr('apollo_info', { n: si.apollo, y: si.y }) };
     return { name: tr(si.key + '_name') + ' · ' + tr('map_lvl', { n: si.level }), co: fmtLat(si.lat) + ', ' + fmtLon(si.lon), text: tr(si.key + '_info') };
@@ -1778,7 +1917,7 @@ function createGame(opts) {
   function updateStorm(dt) {
     const st = S.storm; if (!st.on) return;
     st.shielded = insideShelter() && st.valves[0] >= VALVE_TIME && st.valves[1] >= VALVE_TIME;
-    if (st.phase === 'calm') { st.t -= dt; if (st.t <= 0) { st.phase = 'warn'; st.timer = STORM_WARN; sfx.alarm(); speakLines([tr('st_warnT') + '! ' + tr('st_msg')]); } }
+    if (st.phase === 'calm') { st.t -= dt; if (st.t <= 0) { st.phase = 'warn'; st.timer = STORM_WARN; sfx.alarm(); const rs = realStorm(); speakLines([tr('st_warnT') + '! ' + tr('st_msg')].concat(rs ? [tr('st_real', { n: liveLevel() })] : [])); if (rs) toast(tr('st_real', { n: liveLevel() }), 8); } }
     else if (st.phase === 'warn') { st.timer -= dt; if (st.timer <= 0) { st.timer = 0; st.phase = 'hit'; sfx.alarm(); speakLines([tr('st_hitSay')]); } }
     // hold E at a valve to pump water into its wall
     st.pumping = -1;
@@ -1799,7 +1938,7 @@ function createGame(opts) {
       if (st.phase === 'hit') { st.shieldT += dt; if (st.shieldT >= STORM_SAFE && !S.winAt) S.winAt = S.t + 0.5; }
     }
     // Geiger counter
-    const rate = st.exposed ? 30 : st.phase === 'hit' ? 1.2 : st.phase === 'warn' ? 0.8 + (1 - st.timer / STORM_WARN) * 5 : 0;
+    const rate = (st.exposed ? 30 : st.phase === 'hit' ? 1.2 : st.phase === 'warn' ? 0.8 + (1 - st.timer / STORM_WARN) * 5 : 0) * stormMul();
     st.clickT -= dt;
     if (rate > 0 && st.clickT <= 0) { sfx.click(st.exposed ? 1.6 : 0.6); st.clickT = -Math.log(1 - Math.random()) / rate; }
   }
@@ -2272,7 +2411,7 @@ function createGame(opts) {
     sfx.drive(0, false);
   }
   function win() {
-    if (S.storm.on) { const m = Math.floor(S.t / 60), sc = Math.floor(S.t % 60); endCard(tr('swinT'), tr('swinD', { t: m + ':' + String(sc).padStart(2, '0') }), true); return; }
+    if (S.storm.on) { const m = Math.floor(S.t / 60), sc = Math.floor(S.t % 60); endCard(tr('swinT'), tr('swinD', { t: m + ':' + String(sc).padStart(2, '0') }) + liveLine(), true); return; }
     if (S.tankOn) { const m = Math.floor(S.t / 60), sc = Math.floor(S.t % 60); endCard(tr('winT1'), tr('winD1', { n: S.delivered, t: m + ':' + String(sc).padStart(2, '0') }) + ' ' + tr('money') + ': $' + Math.floor(S.money) + '.', true); return; }
     if (S.mission) { const m = Math.floor(S.t / 60), sc = Math.floor(S.t % 60); endCard(tr('mwinT'), tr('mwinD', { t: m + ':' + String(sc).padStart(2, '0') }), true); return; }
     const m = Math.floor(S.t / 60), s = Math.floor(S.t % 60);
@@ -2286,7 +2425,7 @@ function createGame(opts) {
 
   function update(dt) {
     S.t += dt;
-    if (!S.mission) S.clock = (S.clock + dt / DAY_LEN) % 1;
+    if (!S.mission) { if (realMode) { realT -= dt; if (realT <= 0) { realT = 5; S.clock = realMoonClock(SITE.lon, Date.now()); } } else S.clock = (S.clock + dt / DAY_LEN) % 1; }
     updateSun();
     const f = S.foot, c = S.car, stage = radStage();
     const stageSpeed = [1, 0.88, 0.72, 0.5][stage];
@@ -2390,7 +2529,8 @@ function createGame(opts) {
       const inCrater = !S.mission || Math.hypot(cur.x - TOWER.x, cur.z - TOWER.z) < SHADOW.R * 1.1;
       S.sunlit = sunSin > 0.005 && !(inCrater && sunBlocked(cur.x, cur.z, S.sunU.x, S.sunU.z, S.tanE));
     }
-    let ambT = !S.sunlit ? T_NIGHT : S.mission ? T_DAY : T_NIGHT + (T_DAY - T_NIGHT) * smooth(-0.02, 0.5, sunSin);
+    let ambT = realMode && !S.mission ? (S.sunlit || sunSin <= 0.005 ? divinerC(S.clock, SITE.lat) : T_NIGHT)     // real Moon time: NASA Diviner temperatures
+      : !S.sunlit ? T_NIGHT : S.mission ? T_DAY : T_NIGHT + (T_DAY - T_NIGHT) * smooth(-0.02, 0.5, sunSin);
     if (S.mission && !S.sunlit && S.mirrors.placed > 0) ambT += S.mirrors.placed * MIRROR_HEAT * (1 - smooth(POOL_R * 0.55, POOL_R * 1.1, Math.hypot(cur.x - TOWER.x, cur.z - TOWER.z)));
     S.amb += (ambT - S.amb) * (1 - Math.exp(-(S.mission ? 1.8 : 0.9) * dt));
     const expo = S.mode === 'car' ? 0.4 : 1;
@@ -2409,6 +2549,7 @@ function createGame(opts) {
       if (S.shade) radRate *= 0.6;
       if (fl.on) radRate *= 3.5;
       if (sunSin < 0 && !S.mission) radRate *= 0.5;
+      radRate *= liveRadFactor();               // live NOAA GOES proton flux: more radiation outside when the real Sun is stormy
     }
     if (inRadShelter()) radRate = 0;          // radiation shelter: no new exposure (already-absorbed radiation stays)
     S.rad = clamp(S.rad + radRate * dt - (inLab ? 6 * dt : 0), 0, 100);
@@ -2784,7 +2925,9 @@ function createGame(opts) {
     // clock and temperature
     const hrs = S.clock * 24, hh = Math.floor(hrs), mm = Math.floor((hrs - hh) * 60);
     dset(envClk, 'text', pad2(hh) + ':' + pad2(mm));
-    dset(envPh, 'text', tr(sunSin > 0.15 ? 'ph_day' : sunSin < -0.06 ? 'ph_night' : S.clock < 0.5 ? 'ph_dawn' : 'ph_dusk'));
+    dset(envPh, 'text', tr(sunSin > 0.15 ? 'ph_day' : sunSin < -0.06 ? 'ph_night' : S.clock < 0.5 ? 'ph_dawn' : 'ph_dusk') + (realMode && !S.mission ? ' · ' + tr('lv_real_tag') : ''));
+    { const ok = LIVE.at > 0, lv = liveLevel(); dset(envLv, 'display', ok ? 'flex' : 'none');
+      if (ok) { dset(envLvN, 'text', '☀ ' + tr('hud_sun')); dset(envLvV, 'text', lv > 0 ? tr('hud_storm', { n: lv }) : tr('hud_calm')); dset(envLvV, 'color', lv > 0 ? '#ff7a5c' : '#6ee7a0'); } }
     dset(envAn, 'text', tr('t_out')); dset(envUn, 'text', tr('t_suit'));
     dset(envAv, 'text', fmtT(S.amb)); dset(envUv, 'text', fmtT(S.suit));
     dset(envAv, 'color', S.amb > 60 ? '#ffb27a' : S.amb < -20 ? '#8fd0ff' : '#eef4ff');
@@ -2874,7 +3017,7 @@ function createGame(opts) {
     if (!S.paused) { updateDust(dt); earth.rotation.y += dt * 0.16; clouds.rotation.y += dt * 0.21; }
     if (S.storm.on) {
       const on = S.storm.exposed && !S.over;
-      stat.style.opacity = on ? (0.42 + Math.random() * 0.25).toFixed(2) : '0';
+      stat.style.opacity = on ? Math.min(0.85, (0.42 + Math.random() * 0.25) * stormMul()).toFixed(2) : '0';
       if (on) stat.style.backgroundPosition = Math.floor(Math.random() * 160) + 'px ' + Math.floor(Math.random() * 160) + 'px';
     }
     const s = subject();
@@ -2902,7 +3045,10 @@ function createGame(opts) {
   onResize();
   load.style.display = 'flex';
   S.cam.yaw = S.foot.yaw; S.cam.x = S.foot.x; S.cam.z = S.foot.z - 8;
-  updateSun(); S.amb = S.mission ? T_DAY : T_NIGHT + (T_DAY - T_NIGHT) * smooth(-0.02, 0.5, sunSin);
+  if (realMode) S.clock = realMoonClock(SITE.lon, Date.now());
+  updateSun(); S.amb = S.mission ? T_DAY : realMode ? divinerC(S.clock, SITE.lat) : T_NIGHT + (T_DAY - T_NIGHT) * smooth(-0.02, 0.5, sunSin);
+  const onLive = () => { if (!destroyed) renderLive(); }; liveSubs.add(onLive); fetchLive();
+  const liveIv = setInterval(() => fetchLive(), 10 * 60e3);
   if (MISSION) env.querySelector('.clk').style.display = 'none';
   setTimeout(() => {
     if (destroyed) return;
@@ -2920,7 +3066,7 @@ function createGame(opts) {
     setVolume(v) { sfx.setVolume(v); voiceVol = v; },
     setContrast(c) { canvas.style.filter = c === 1 ? '' : 'contrast(' + c + ')'; },
     destroy() {
-      destroyed = true; cancelAnimationFrame(raf); stopSpeech();
+      destroyed = true; cancelAnimationFrame(raf); stopSpeech(); liveSubs.delete(onLive); clearInterval(liveIv);
       window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('resize', onResize); window.removeEventListener('blur', onBlur);
       for (const [, c] of chunks) removeChunk(c); chunks.clear();
@@ -2929,7 +3075,7 @@ function createGame(opts) {
       sfx.close(); renderer.dispose(); try { renderer.forceContextLoss(); } catch (e) { /* ignore */ }
       container.innerHTML = '';
     },
-    _debug: { S, rover, astro, lab, camera, scene, renderer, SITES, rocks, update, frame, mis, sunDir, sunLight, earth, MIR_SPOTS, heightAt, sunBlocked, qStat, queueLen: () => queue.length, pr: () => pr, planChunks, clouds, earthGlow }
+    _debug: { realMode: () => realMode, setRealMode, liveSay, SITE, S, rover, astro, lab, camera, scene, renderer, SITES, rocks, update, frame, mis, sunDir, sunLight, earth, MIR_SPOTS, heightAt, sunBlocked, qStat, queueLen: () => queue.length, pr: () => pr, planChunks, clouds, earthGlow }
   };
 }
 
@@ -2939,5 +3085,6 @@ window.MoonGame = {
   setLang: l => { if (G) G.setLang(l); },
   setVolume: v => { if (G) G.setVolume(v); },
   setContrast: c => { if (G) G.setContrast(c); },
+  live: () => LIVE, fetchLive, realMoonClock, divinerC,
   _g: () => G
 };
