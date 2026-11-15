@@ -2685,7 +2685,8 @@ function createGame(opts) {
         if (!fwd && !keys.KeyB) c.v *= 1 - clamp(0.6 * dt, 0, 1);
       }
       const lim = vmax * clamp(1 - Math.max(0, slope) * 1.3, 0.2, 1);
-      c.v = clamp(c.v, -9, lim);
+      const revLim = Math.min(9, vmax * 0.5);       // reverse is always slower than forward (an empty battery or a damaged rover slows it too)
+      c.v = clamp(c.v, -revLim, lim);
       const steerMax = lerp(0.62, 0.17, clamp(Math.abs(c.v) / 30, 0, 1));
       c.steer = lerp(c.steer, turn * steerMax, 1 - Math.exp(-6 * dt));
       c.yaw += (c.v * Math.tan(c.steer) / 4.6) * dt * (c.air ? 0.35 : 1);
