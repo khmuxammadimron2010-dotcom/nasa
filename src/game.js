@@ -2694,6 +2694,16 @@ function createGame(opts) {
           f.x = r.wx + ddx / d * rad; f.z = r.wz + ddz / d * rad; f.speed *= 0.85;
         }
       }
+      if (f.h < 1.7) {                           // the rover is solid: walk around it (stand next to it and press E to get in)
+        const c = S.car, sy = Math.sin(c.yaw), cy = Math.cos(c.yaw), HL = 2.3 + 0.35, HW = 1.3 + 0.35;
+        const rx = f.x - c.x, rz = f.z - c.z, lf = rx * sy + rz * cy, ls = rx * cy - rz * sy;   // foot in the rover's own frame
+        if (Math.abs(lf) < HL && Math.abs(ls) < HW) {
+          const pf = HL - Math.abs(lf), ps = HW - Math.abs(ls);
+          if (pf < ps) { const k = Math.sign(lf) * pf; f.x += sy * k; f.z += cy * k; }
+          else { const k = Math.sign(ls) * ps; f.x += cy * k; f.z -= sy * k; }
+          f.speed *= 0.85;
+        }
+      }
       f.y = heightAt(f.x, f.z);
       if (f.air) {
         f.h += f.vh * dt; f.vh -= JUMP_G * dt;
