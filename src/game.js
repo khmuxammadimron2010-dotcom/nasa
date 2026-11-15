@@ -1278,6 +1278,41 @@ const CSS = `
 .mg-btn:hover{transform:translateY(-2px);border-color:rgba(224,225,225,.6)}
 .mg-btn.pri{border-color:transparent;color:#1C0F13;background:linear-gradient(110deg,#E3E3E3,#C7D5D5 55%,#B7CDCE)}
 .mg-load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#150B0E;font-size:15px;letter-spacing:.2em;text-transform:uppercase;color:#B7CECE}
+/* compact HUD: smaller panels, two tidy columns (left: vitals + inventory, right: radar, target, clock, oxygen factory) */
+.mg-glass{border-radius:18px}
+.mg-stats{left:14px;top:14px;width:190px;padding:9px 12px}
+.mg-rh{font-size:10.5px;margin-bottom:3px;letter-spacing:.01em}
+.mg-bar{height:5px}
+.mg-o2badge{font-size:10px;padding:2px 6px;margin-top:4px}
+.mg-inv{left:14px;width:190px;padding:7px 12px;font-size:10.5px;line-height:1.5}
+.mg-map{right:14px;top:14px;width:200px;padding:7px}
+.mg-map canvas{width:100%;height:auto;display:block}
+.mg-sp{margin-top:4px;font-size:10.5px}
+.mg-tgt{right:14px;width:200px;padding:6px 10px;gap:8px;font-size:10.5px}
+.mg-arrow{width:20px;height:20px;flex:0 0 20px}
+.mg-env{right:14px;width:200px;padding:7px 12px;font-size:10.5px;line-height:1.45}
+.mg-eclss{right:14px;width:200px;padding:8px 10px;font-size:10.5px;line-height:1.4}
+.mg-eclss-t{font-size:10px;margin-bottom:4px}
+.mg-eclss-r{font-size:10px;gap:6px}.mg-eclss-r b,.mg-eclss-r span:last-child{text-align:right}
+.mg-eclss-btn{font-size:9.5px;padding:4px 4px}
+.mg-obj{top:14px;padding:7px 16px;min-width:230px}
+.mg-obj b{font-size:12.5px}
+.mg-obj small{font-size:10.5px;margin-top:2px}
+.mg-obj .mg-prog{height:4px;margin-top:6px}
+.mg-coach{top:84px;width:min(440px,max(240px,calc(100vw - 480px)));padding:8px 14px 10px}
+.mg-coach .h{font-size:9.5px}
+.mg-coach .t{margin-top:4px;font-size:13.5px;line-height:1.45}
+.mg-coach.low{top:160px}
+.mg-storm,.mg-radok{top:84px}
+.mg-view{top:84px;padding:6px 14px;font-size:11px}
+.mg-tip{top:140px;font-size:12.5px;padding:8px 14px}
+.mg-prompt{bottom:70px;padding:8px 16px;font-size:12.5px}
+.mg-action{bottom:120px;padding:9px 16px;min-width:230px}
+.mg-svc{bottom:120px;font-size:12.5px;padding:8px 16px}
+.mg-warn{bottom:22px;padding:8px 16px;font-size:12px}
+.mg-msg{bottom:22px;padding:7px 14px;font-size:11.5px}
+.mg-pause{left:14px;bottom:14px;padding:7px 12px;font-size:10.5px}
+.mg-mapbtn{left:64px;bottom:14px;padding:7px 12px;font-size:10.5px}
 @media (max-width:900px){.mg-obj{top:auto;bottom:150px;max-width:90vw}.mg-coach,.mg-coach.low{top:auto;bottom:226px;width:90vw}.mg-coach .t{font-size:15px}.mg-stats{width:200px}.mg-inv{display:none}}
 `;
 
@@ -1415,6 +1450,14 @@ function createGame(opts) {
   const env = el('div', 'mg-env mg-glass', '<div class="clk"><b></b><span></span></div><div class="tr"><span class="a"></span><b class="av"></b></div><div class="tr"><span class="u"></span><b class="uv"></b></div><div class="tb"><span></span></div><div class="lv"><span></span><b></b></div>'); root.appendChild(env);
   const envClk = env.querySelector('.clk b'), envPh = env.querySelector('.clk span'), envAn = env.querySelector('.a'), envAv = env.querySelector('.av'), envUn = env.querySelector('.u'), envUv = env.querySelector('.uv'), envBar = env.querySelector('.tb span');
   const envLv = env.querySelector('.lv'), envLvN = envLv.querySelector('span'), envLvV = envLv.querySelector('b');
+  // two tidy columns: every panel sits 10px under the one above it (re-done whenever a panel changes size)
+  function stackHud() {
+    const G = 10, below = n => n.offsetTop + n.offsetHeight + G, shown = n => getComputedStyle(n).display !== 'none' && n.offsetHeight > 0;
+    inv.style.top = below(stats) + 'px';
+    tgt.style.top = below(map) + 'px';
+    env.style.top = (shown(tgt) ? below(tgt) : below(map)) + 'px';
+    eclssBox.style.top = below(env) + 'px';
+  }
   const dcache = new WeakMap();   // only touch the DOM when a value really changed
   function dset(node, prop, val) {
     let o = dcache.get(node); if (!o) { o = {}; dcache.set(node, o); }
@@ -1428,6 +1471,8 @@ function createGame(opts) {
   const tgt = el('div', 'mg-tgt mg-glass',
     '<svg class="mg-arrow" viewBox="0 0 30 30"><path d="M15 3 L24 25 L15 20 L6 25 Z" fill="#B7CECE"/></svg><div><b></b><span></span></div>');
   root.appendChild(tgt);
+  const hudRO = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => stackHud()) : null;
+  if (hudRO) [stats, map, tgt, env].forEach(n => hudRO.observe(n));
   const arrow = tgt.querySelector('.mg-arrow'), tgtB = tgt.querySelector('b'), tgtS = tgt.querySelector('span');
   const prompt = el('div', 'mg-prompt mg-glass'); root.appendChild(prompt);
   const svc = el('div', 'mg-svc mg-glass'); root.appendChild(svc);
@@ -3077,8 +3122,7 @@ function createGame(opts) {
         dset(ox.mk, 'left', S.o2Line.toFixed(1) + '%'); dset(ox.mk, 'background', S.o2 < S.o2Line ? '#FF6F6F' : '#ffffff');
         dset(ox.home, 'text', tr('o2home', { n: Math.max(1, Math.ceil(S.o2Line / 12.5)) })); dset(ox.home, 'color', S.o2 < S.o2Line + 10 ? '#FF9D8A' : '#BBBAC6');
       }
-      dset(inv, 'top', (stats.offsetTop + stats.offsetHeight + 12) + 'px');
-      dset(eclssBox, 'top', (env.offsetTop + env.offsetHeight + 12) + 'px');   // right column, under the clock / temperature panel
+      stackHud();
     }
     if (S.storm.on) {
       const pct = i => Math.round(S.storm.valves[i] / VALVE_TIME * 100);
@@ -3239,7 +3283,7 @@ function createGame(opts) {
     setVolume(v) { sfx.setVolume(v); voiceVol = v; },
     setContrast(c) { canvas.style.filter = c === 1 ? '' : 'contrast(' + c + ')'; },
     destroy() {
-      destroyed = true; cancelAnimationFrame(raf); stopSpeech(); liveSubs.delete(onLive); clearInterval(liveIv);
+      destroyed = true; cancelAnimationFrame(raf); if (hudRO) hudRO.disconnect(); stopSpeech(); liveSubs.delete(onLive); clearInterval(liveIv);
       window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp);
       document.removeEventListener('mousemove', onLockMove); document.removeEventListener('pointerlockchange', onLockChange); if (locked()) document.exitPointerLock();
       window.removeEventListener('resize', onResize); window.removeEventListener('blur', onBlur);
