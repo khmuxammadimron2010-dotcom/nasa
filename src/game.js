@@ -291,7 +291,7 @@ const T = {
     s_heal: 'Press <kbd>H</kbd> — heal to full ({c})', s_healing: 'Healing… press <kbd>H</kbd> to stop',
     s_repair: 'Press <kbd>R</kbd> — repair the rover ({c})', s_repairing: 'Repairing the rover… press <kbd>R</kbd> to stop',
     w_hit: 'Collision! Rover −{d}%', w_rv1: 'Rover badly damaged — avoid the stones, repair it at the lab.', w_rv0: 'Rover wrecked — it can only crawl. Repair it at the lab.',
-    v_first: 'FIRST-PERSON VIEW', v_third: 'THIRD-PERSON VIEW',
+    v_first: 'FIRST-PERSON VIEW', v_third: 'THIRD-PERSON VIEW', v_lock: 'Inside the base you see through your own eyes. Go outside to change the view.',
     helpTitle: 'MOON MISSION',
     help: ['W / S — walk or drive forward / back', 'A / D — turn left / right',
       'Space — jump · Shift — run · B — brake', 'E — interact (rover, rocks, lab)',
@@ -377,7 +377,7 @@ const T = {
     s_heal: '<kbd>H</kbd> bosing — to‘liq davolanish ({c})', s_healing: 'Davolanmoqda… to‘xtatish uchun <kbd>H</kbd>',
     s_repair: '<kbd>R</kbd> bosing — roverni ta’mirlash ({c})', s_repairing: 'Rover ta’mirlanmoqda… to‘xtatish uchun <kbd>R</kbd>',
     w_hit: 'To‘qnashuv! Rover −{d}%', w_rv1: 'Rover qattiq shikastlandi — toshlardan qoching, laboratoriyada ta’mirlang.', w_rv0: 'Rover ishdan chiqdi — faqat sekin yura oladi. Laboratoriyada ta’mirlang.',
-    v_first: 'BIRINCHI SHAXS KO‘RINISHI', v_third: 'UCHINCHI SHAXS KO‘RINISHI',
+    v_first: 'BIRINCHI SHAXS KO‘RINISHI', v_third: 'UCHINCHI SHAXS KO‘RINISHI', v_lock: 'Baza ichida hammasini o‘z ko‘zingiz bilan ko‘rasiz. Ko‘rinishni o‘zgartirish uchun tashqariga chiqing.',
     helpTitle: 'OY MISSIYASI',
     help: ['W / S — oldinga / orqaga yurish yoki haydash', 'A / D — chapga / o‘ngga burilish',
       'Space — sakrash · Shift — yugurish · B — tormoz', 'E — o‘zaro ta’sir (rover, toshlar, laboratoriya)',
@@ -447,7 +447,7 @@ const T = {
     s_heal: 'Нажмите <kbd>H</kbd> — полностью вылечиться ({c})', s_healing: 'Лечение… нажмите <kbd>H</kbd>, чтобы остановить',
     s_repair: 'Нажмите <kbd>R</kbd> — починить ровер ({c})', s_repairing: 'Ремонт ровера… нажмите <kbd>R</kbd>, чтобы остановить',
     w_hit: 'Столкновение! Ровер −{d}%', w_rv1: 'Ровер сильно повреждён — объезжайте камни, почините его в лаборатории.', w_rv0: 'Ровер разбит — он может лишь ползти. Почините его в лаборатории.',
-    v_first: 'ВИД ОТ ПЕРВОГО ЛИЦА', v_third: 'ВИД ОТ ТРЕТЬЕГО ЛИЦА',
+    v_first: 'ВИД ОТ ПЕРВОГО ЛИЦА', v_third: 'ВИД ОТ ТРЕТЬЕГО ЛИЦА', v_lock: 'Внутри базы ты смотришь своими глазами. Выйди наружу, чтобы сменить вид.',
     helpTitle: 'ЛУННАЯ МИССИЯ',
     help: ['W / S — идти или ехать вперёд / назад', 'A / D — поворот влево / вправо',
       'Пробел — прыжок · Shift — бег · B — тормоз', 'E — действие (ровер, камни, лаборатория)',
@@ -2406,7 +2406,10 @@ function createGame(opts) {
     flash(tr(fp ? 'v_first' : 'v_third'));
     sfx.beep(fp ? 700 : 520, 0.07, 'sine', 0.08);
   }
-  function toggleView() { S.autoFP = false; setView(S.view === 'third' ? 'first' : 'third'); }
+  function toggleView() {
+    if (S.inBase) { flash(tr('v_lock')); sfx.beep(300, 0.08, 'sine', 0.08); return; }   // inside the main building the camera stays first-person
+    S.autoFP = false; setView(S.view === 'third' ? 'first' : 'third');
+  }
 
   // ---------- stones: the rover takes damage when it hits them
   function roverHit(nx, nz, pen, px, pz, top, fx, fz) {
@@ -2771,7 +2774,8 @@ function createGame(opts) {
 
     // going inside the base switches to first person; stepping out brings the old view back
     const inside = S.mode === 'foot' && (inBuilding(pos.x, pos.z) || RAD_IN(pos.x, pos.z));
-    if (!S.inBase && inside) { S.inBase = true; if (S.view === 'third') { setView('first'); S.autoFP = true; } }
+    if (!S.inBase && inside) { S.inBase = true; S.autoFP = S.view === 'third'; setView('first'); }
+    else if (S.inBase && S.view !== 'first') setView('first');   // locked: no third-person view inside the base
     else if (S.inBase && !inside) { S.inBase = false; if (S.autoFP) { setView('third'); S.autoFP = false; } }
     updateMission(dt);
     updateStorm(dt);
