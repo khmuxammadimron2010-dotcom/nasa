@@ -2661,6 +2661,19 @@ function createGame(opts) {
         const hit = labContact(f.x, f.z, 0.45); if (!hit) break;
         f.x += hit.nx * hit.pen; f.z += hit.nz * hit.pen; f.speed *= 0.8;
       }
+      {                                          // stones are solid too: walk around them (or jump over them)
+        const fcx = Math.floor(f.x / CS), fcz = Math.floor(f.z / CS);
+        for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) for (const r of chunkRocks(fcx + dx, fcz + dz)) {
+          if (r.top < 0.35) continue;                          // ankle-high pebbles: just step over
+          const ddx = f.x - r.wx, ddz = f.z - r.wz;
+          if (Math.abs(ddx) > 6 || Math.abs(ddz) > 6) continue;
+          if (f.h > r.top - 0.1) continue;                     // jumping over it
+          const rad = 0.35 + r.r * 0.85, d2 = ddx * ddx + ddz * ddz;
+          if (d2 >= rad * rad) continue;
+          const d = Math.sqrt(d2) || 0.01;
+          f.x = r.wx + ddx / d * rad; f.z = r.wz + ddz / d * rad; f.speed *= 0.85;
+        }
+      }
       f.y = heightAt(f.x, f.z);
       if (f.air) {
         f.h += f.vh * dt; f.vh -= JUMP_G * dt;
@@ -3294,7 +3307,7 @@ function createGame(opts) {
       sfx.close(); renderer.dispose(); try { renderer.forceContextLoss(); } catch (e) { /* ignore */ }
       container.innerHTML = '';
     },
-    _debug: { realMode: () => realMode, setRealMode, liveSay, SITE, S, coach, rover, astro, lab, camera, scene, renderer, SITES, rocks, update, frame, mis, sunDir, sunLight, earth, MIR_SPOTS, heightAt, sunBlocked, qStat, queueLen: () => queue.length, pr: () => pr, planChunks, clouds, earthGlow }
+    _debug: { chunkRocks, CS, realMode: () => realMode, setRealMode, liveSay, SITE, S, coach, rover, astro, lab, camera, scene, renderer, SITES, rocks, update, frame, mis, sunDir, sunLight, earth, MIR_SPOTS, heightAt, sunBlocked, qStat, queueLen: () => queue.length, pr: () => pr, planChunks, clouds, earthGlow }
   };
 }
 
