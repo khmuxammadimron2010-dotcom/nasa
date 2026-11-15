@@ -295,7 +295,7 @@ const T = {
     helpTitle: 'MOON MISSION',
     help: ['W / S — walk or drive forward / back', 'A / D — turn left / right',
       'Space — jump · Shift — run · B — brake', 'E — interact (rover, rocks, lab)',
-      'C — switch 3rd / 1st person view', 'Inside the base: E — oxygen maker · H — medical bay · R — workshop (costs money)', 'Drag the mouse — look around · Wheel — zoom', 'M — Moon map (where you are on the real Moon)', 'O — water splitter · G — breath recycler · N — oxygen guide', 'Esc — pause'],
+      'C — switch 3rd / 1st person view', 'Inside the base: E — oxygen maker · H — medical bay · R — workshop (costs money)', 'Click the game, then move the mouse — look around (Esc frees the mouse) · Wheel — zoom', 'M — Moon map (where you are on the real Moon)', 'O — water splitter · G — breath recycler · N — oxygen guide', 'Esc — pause'],
     helpGoal: 'Drive to the glowing craters, collect rock samples, load them into the rover and store 12 samples in the lab. The sun’s radiation hurts you outside, and oxygen and energy run down — return to the lab to recover. Stones damage the rover. Go through the airlock into the base: store samples at the storage rack (E), earn money, and spend it at the medical bay (H) and the workshop (R).',
     begin: 'BEGIN MISSION', loading: 'Generating the Moon…',
     paused: 'PAUSED', resume: 'RESUME', quit: 'BACK TO LEVELS',
@@ -305,7 +305,7 @@ const T = {
     kidTitle: 'Mission briefing for young astronauts', kidTitleM: 'Mission briefing: The Deadly Shadow', readAloud: '🔊 Read aloud', stopRead: '⏹ Stop reading', controls: 'Controls',
     kidIntro: 'Welcome, young astronaut! Our Moon base is running out of air. I will show you how everything works, one step at a time. Press Begin Mission!',
     coachStep: 'Step {n} of {m}', coachHear: '🔊 Again', tgt_maker: 'Oxygen Maker', tgt_door: 'Door', tgt_crater: 'Glowing crater', co_listen: 'Listen…',
-    c_hello: 'You are inside our Moon base. Walk with W, A, S and D. Drag the mouse to look around.', co_hello: 'Walk around with W, A, S, D',
+    c_hello: 'You are inside our Moon base. Walk with W, A, S and D. Click the game, then move the mouse to look around.', co_hello: 'Walk around with W, A, S, D',
     c_maker: 'Great! Our base is running out of air. Follow the arrow to the orange Oxygen Maker.', co_maker: 'Go to the Oxygen Maker',
     c_rocks: 'This is the Oxygen Maker. Here is a secret: Moon rocks are almost half oxygen! The maker heats the rocks and pulls the oxygen out.',
     c_tank: 'Look at the top of the screen. The base oxygen tank is only {n}% full. Your job is to fill it to 100%!',
@@ -381,7 +381,7 @@ const T = {
     helpTitle: 'OY MISSIYASI',
     help: ['W / S — oldinga / orqaga yurish yoki haydash', 'A / D — chapga / o‘ngga burilish',
       'Space — sakrash · Shift — yugurish · B — tormoz', 'E — o‘zaro ta’sir (rover, toshlar, laboratoriya)',
-      'C — ko‘rinish: 3-shaxs / 1-shaxs', 'Bazada: E — kislorod mashinasi · H — tibbiyot · R — ustaxona (pul kerak)', 'Sichqonchani sudrang — atrofga qarash · G‘ildirak — yaqinlashtirish', 'M — Oy xaritasi (haqiqiy Oyda qayerdasiz)', 'O — suv ajratgich · G — nafas qayta ishlagich · N — kislorod qo‘llanmasi', 'Esc — pauza'],
+      'C — ko‘rinish: 3-shaxs / 1-shaxs', 'Bazada: E — kislorod mashinasi · H — tibbiyot · R — ustaxona (pul kerak)', 'O‘yinni bosing va sichqonchani yurgizing — atrofga qarash (Esc sichqonchani bo‘shatadi) · G‘ildirak — yaqinlashtirish', 'M — Oy xaritasi (haqiqiy Oyda qayerdasiz)', 'O — suv ajratgich · G — nafas qayta ishlagich · N — kislorod qo‘llanmasi', 'Esc — pauza'],
     helpGoal: 'Yonib turgan kraterlarga boring, tosh namunalarini yig‘ing, roverga yuklang va laboratoriyaga 12 ta namuna yetkazing. Tashqarida quyosh radiatsiyasi zarar qiladi, kislorod va energiya kamayadi — tiklanish uchun laboratoriyaga qayting. Toshlar roverga zarar yetkazadi. Shlyuz orqali bazaga kiring: namunalarni omborga (E) qo‘ying, pul ishlang va uni tibbiyot xonasi (H) hamda ustaxona (R) uchun sarflang.',
     begin: 'MISSIYANI BOSHLASH', loading: 'Oy yaratilmoqda…',
     paused: 'PAUZA', resume: 'DAVOM ETISH', quit: 'BOSQICHLARGA QAYTISH',
@@ -391,7 +391,7 @@ const T = {
     kidTitle: 'Yosh kosmonavtlar uchun missiya tushuntirishi', kidTitleM: 'Missiya tushuntirishi: O‘limli soya', readAloud: '🔊 Ovoz chiqarib o‘qish', stopRead: '⏹ To‘xtatish', controls: 'Boshqaruv',
     kidIntro: 'Xush kelibsiz, yosh kosmonavt! Oydagi bazamizda havo tugab bormoqda. Men sizga hammasi qanday ishlashini qadamma-qadam ko‘rsataman. Missiyani boshlash tugmasini bosing!',
     coachStep: '{n}-qadam / {m}', coachHear: '🔊 Yana', tgt_maker: 'Kislorod mashinasi', tgt_door: 'Eshik', tgt_crater: 'Yonib turgan krater', co_listen: 'Tinglang…',
-    c_hello: 'Siz Oydagi bazamiz ichidasiz. W, A, S va D bilan yuring. Atrofga qarash uchun sichqonchani torting.', co_hello: 'W, A, S, D bilan yurib ko‘ring',
+    c_hello: 'Siz Oydagi bazamiz ichidasiz. W, A, S va D bilan yuring. Atrofga qarash uchun o‘yinni bosing va sichqonchani yurgizing.', co_hello: 'W, A, S, D bilan yurib ko‘ring',
     c_maker: 'Zo‘r! Bazamizda havo tugab bormoqda. Strelka bo‘yicha to‘q sariq Kislorod mashinasiga boring.', co_maker: 'Kislorod mashinasiga boring',
     c_rocks: 'Bu Kislorod mashinasi. Mana sir: Oy toshlarining deyarli yarmi kislorod! Mashina toshlarni qizdirib, ichidagi kislorodni ajratib oladi.',
     c_tank: 'Ekranning yuqorisiga qarang. Baza kislorod baki atigi {n}% to‘la. Sizning vazifangiz — uni 100% gacha to‘ldirish!',
@@ -451,7 +451,7 @@ const T = {
     helpTitle: 'ЛУННАЯ МИССИЯ',
     help: ['W / S — идти или ехать вперёд / назад', 'A / D — поворот влево / вправо',
       'Пробел — прыжок · Shift — бег · B — тормоз', 'E — действие (ровер, камни, лаборатория)',
-      'C — вид от 3-го / 1-го лица', 'В базе: E — кислородная машина · H — медотсек · R — мастерская (за деньги)', 'Перетаскивайте мышь — осмотр · Колесо — масштаб', 'M — карта Луны (где ты на настоящей Луне)', 'O — расщепитель воды · G — переработчик дыхания · N — справка о кислороде', 'Esc — пауза'],
+      'C — вид от 3-го / 1-го лица', 'В базе: E — кислородная машина · H — медотсек · R — мастерская (за деньги)', 'Нажми на игру и двигай мышью — осмотр (Esc освобождает мышь) · Колесо — масштаб', 'M — карта Луны (где ты на настоящей Луне)', 'O — расщепитель воды · G — переработчик дыхания · N — справка о кислороде', 'Esc — пауза'],
     helpGoal: 'Езжайте к светящимся кратерам, собирайте образцы породы, грузите их в ровер и сдайте 12 образцов в лабораторию. Снаружи солнечная радиация вредит здоровью, а кислород и энергия убывают — для восстановления возвращайтесь в лабораторию. Камни повреждают ровер. Пройдите через шлюз в базу: сдавайте образцы на склад (E), зарабатывайте деньги и тратьте их в медотсеке (H) и мастерской (R).',
     begin: 'НАЧАТЬ МИССИЮ', loading: 'Создаём Луну…',
     paused: 'ПАУЗА', resume: 'ПРОДОЛЖИТЬ', quit: 'К УРОВНЯМ',
@@ -461,7 +461,7 @@ const T = {
     kidTitle: 'Инструктаж для юных астронавтов', kidTitleM: 'Инструктаж: Смертельная тень', readAloud: '🔊 Прочитать вслух', stopRead: '⏹ Остановить', controls: 'Управление',
     kidIntro: 'Добро пожаловать, юный астронавт! На нашей лунной базе заканчивается воздух. Я покажу тебе, как всё работает, шаг за шагом. Нажми «Начать миссию»!',
     coachStep: 'Шаг {n} из {m}', coachHear: '🔊 Ещё раз', tgt_maker: 'Кислородная машина', tgt_door: 'Дверь', tgt_crater: 'Светящийся кратер', co_listen: 'Слушай…',
-    c_hello: 'Ты внутри нашей лунной базы. Ходи клавишами W, A, S и D. Чтобы осмотреться, двигай мышь с зажатой кнопкой.', co_hello: 'Пройдись: W, A, S, D',
+    c_hello: 'Ты внутри нашей лунной базы. Ходи клавишами W, A, S и D. Чтобы осмотреться, нажми на игру и двигай мышью.', co_hello: 'Пройдись: W, A, S, D',
     c_maker: 'Отлично! На базе заканчивается воздух. Иди по стрелке к оранжевой Кислородной машине.', co_maker: 'Иди к Кислородной машине',
     c_rocks: 'Это Кислородная машина. Вот секрет: лунные камни почти наполовину состоят из кислорода! Машина нагревает камни и извлекает из них кислород.',
     c_tank: 'Посмотри наверх экрана. Кислородный бак базы заполнен всего на {n}%. Твоя задача — наполнить его до 100%!',
@@ -1133,7 +1133,7 @@ const CSS = `
 .mg-root{position:absolute;inset:0;overflow:hidden;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#E2E2E2;user-select:none;-webkit-user-select:none;background:#000000}
 .mg-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:none}
 .mg-canvas.drag{cursor:grabbing}
-.mg-glass{background:linear-gradient(160deg,rgba(70,72,77,.66),rgba(36,26,31,.78));border:1px solid rgba(212,219,219,.18);border-radius:16px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 16px 40px rgba(0,0,0,.35)}
+.mg-glass{background:linear-gradient(180deg,rgba(255,255,255,.17),rgba(255,255,255,.05) 42%,rgba(255,255,255,.08)),rgba(22,26,38,.54);border:1px solid rgba(255,255,255,.24);border-radius:24px;text-shadow:0 1px 2px rgba(0,0,0,.35);backdrop-filter:blur(28px) saturate(185%);-webkit-backdrop-filter:blur(28px) saturate(185%);box-shadow:inset 0 1px 0 rgba(255,255,255,.5),inset 0 -1px 0 rgba(255,255,255,.1),inset 1px 0 0 rgba(255,255,255,.08),0 14px 40px rgba(0,0,0,.32)}
 .mg-vig{position:absolute;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(255,60,40,0) 45%,rgba(255,50,30,.55) 100%);transition:opacity .3s}
 .mg-hurt{position:absolute;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(255,0,0,0) 40%,rgba(255,0,0,.5) 100%)}
 .mg-stats{position:absolute;left:18px;top:18px;width:250px;padding:14px 16px}
@@ -1220,7 +1220,7 @@ const CSS = `
 .mg-eclss{position:absolute;right:18px;top:470px;width:236px;padding:11px 14px;font-size:12px;line-height:1.55}
 .mg-eclss-t{font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#66e6ff;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center}
 .mg-eclss-pipe{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:7px;text-align:center}
-.mg-eclss-part{background:rgba(12,24,38,.65);border:1px solid rgba(255,255,255,.14);border-radius:9px;padding:5px 4px}
+.mg-eclss-part{background:linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,.03)),rgba(14,20,34,.35);border:1px solid rgba(255,255,255,.2);border-radius:12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.3);padding:5px 4px}
 .mg-eclss-part small{display:block;font-size:9.5px;color:#BBBAC6;text-transform:uppercase}
 .mg-eclss-part b{display:block;font-size:11.5px;color:#fff;margin-top:1px}
 .mg-eclss-b{height:6px;border-radius:99px;background:rgba(255,255,255,.12);margin:4px 0 6px;overflow:hidden}
@@ -1228,13 +1228,13 @@ const CSS = `
 .mg-eclss-r{display:flex;justify-content:space-between;font-size:11.5px;color:#BBBAC6}
 .mg-eclss-r b{color:#9AF3C2}
 .mg-eclss-btns{display:flex;gap:5px;margin-top:7px}
-.mg-eclss-btn{flex:1;padding:5px 6px;border-radius:8px;border:1px solid rgba(183,206,206,.3);background:rgba(255,255,255,.08);color:#E2E2E2;font:inherit;font-size:10.5px;font-weight:700;cursor:pointer;text-align:center}
+.mg-eclss-btn{flex:1;padding:5px 6px;border-radius:12px;border:1px solid rgba(255,255,255,.24);background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.05));box-shadow:inset 0 1px 0 rgba(255,255,255,.4);color:#E2E2E2;font:inherit;font-size:10.5px;font-weight:700;cursor:pointer;text-align:center}
 .mg-eclss-btn:hover{border-color:#66e6ff;color:#66e6ff}
 .mg-kid-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:left;margin:10px 0}
-.mg-kid-box{background:rgba(15,28,44,.7);border:1px solid rgba(102,230,255,.25);border-radius:14px;padding:12px 14px}
+.mg-kid-box{background:linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,.03)),rgba(20,26,40,.35);border:1px solid rgba(255,255,255,.2);border-radius:18px;box-shadow:inset 0 1px 0 rgba(255,255,255,.35);padding:12px 14px}
 .mg-kid-box h3{margin:0 0 6px;font-size:14px;color:#66e6ff}
 .mg-kid-box p{margin:0;font-size:12.8px;line-height:1.5;color:#E2E2E2}
-.mg-live{background:rgba(15,28,44,.62);border:1px solid rgba(183,206,206,.28);border-radius:14px;padding:10px 14px 8px;margin:0 0 14px;text-align:left;font-size:13px;line-height:1.45;transition:background .25s,border-color .25s}.mg-live.on{background:rgba(183,206,206,.2);border-color:#B7CECE}.mg-live .hd{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}.mg-live .hd b{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#B7CECE}.mg-live .dot{flex:none;width:9px;height:9px;border-radius:50%;background:#6E7E85}.mg-live .dot.ok{background:#6ee7a0;box-shadow:0 0 8px #6ee7a0;animation:mgLv 1.6s infinite}.mg-live .dot.old{background:#ffc46b}.mg-live .dot.ld{background:#66e6ff;animation:mgLv .8s infinite}@keyframes mgLv{50%{opacity:.3}}.mg-live .rw{display:grid;grid-template-columns:22px minmax(0,1fr) minmax(0,1.25fr);gap:8px;padding:4px 0;border-top:1px solid rgba(255,255,255,.07)}.mg-live .rw:first-of-type{border-top:0}.mg-live .k{color:#BBBAC6}.mg-live .v{color:#E2E2E2;text-align:right}.mg-live .good{color:#6ee7a0}.mg-live .bad{color:#ff7a5c}.mg-live .mut{margin:2px 0 6px;color:#BBBAC6}.mg-live .src{margin:6px 0 0;font-size:10.5px;color:#8b99a0}.mg-live .lvbtn{display:block;margin:8px 0 2px;padding:7px 14px;font-size:12.5px}.mg-live .lvbtn.on{background:#B7CECE;color:#1C0F13}.mg-env .lv{display:flex;justify-content:space-between;gap:6px;margin-top:6px;padding-top:5px;border-top:1px solid rgba(255,255,255,.1);color:#BBBAC6;font-size:11.5px}.mg-env .lv b{font-weight:700}
+.mg-live{background:linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,.03)),rgba(20,26,40,.35);border:1px solid rgba(255,255,255,.2);border-radius:18px;box-shadow:inset 0 1px 0 rgba(255,255,255,.35);padding:10px 14px 8px;margin:0 0 14px;text-align:left;font-size:13px;line-height:1.45;transition:background .25s,border-color .25s}.mg-live.on{background:rgba(183,206,206,.2);border-color:#B7CECE}.mg-live .hd{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}.mg-live .hd b{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#B7CECE}.mg-live .dot{flex:none;width:9px;height:9px;border-radius:50%;background:#6E7E85}.mg-live .dot.ok{background:#6ee7a0;box-shadow:0 0 8px #6ee7a0;animation:mgLv 1.6s infinite}.mg-live .dot.old{background:#ffc46b}.mg-live .dot.ld{background:#66e6ff;animation:mgLv .8s infinite}@keyframes mgLv{50%{opacity:.3}}.mg-live .rw{display:grid;grid-template-columns:22px minmax(0,1fr) minmax(0,1.25fr);gap:8px;padding:4px 0;border-top:1px solid rgba(255,255,255,.07)}.mg-live .rw:first-of-type{border-top:0}.mg-live .k{color:#BBBAC6}.mg-live .v{color:#E2E2E2;text-align:right}.mg-live .good{color:#6ee7a0}.mg-live .bad{color:#ff7a5c}.mg-live .mut{margin:2px 0 6px;color:#BBBAC6}.mg-live .src{margin:6px 0 0;font-size:10.5px;color:#8b99a0}.mg-live .lvbtn{display:block;margin:8px 0 2px;padding:7px 14px;font-size:12.5px}.mg-live .lvbtn.on{background:#B7CECE;color:#1C0F13}.mg-env .lv{display:flex;justify-content:space-between;gap:6px;margin-top:6px;padding-top:5px;border-top:1px solid rgba(255,255,255,.1);color:#BBBAC6;font-size:11.5px}.mg-env .lv b{font-weight:700}
 @media (max-width:900px){.mg-eclss{display:none}.mg-kid-grid{grid-template-columns:1fr}}
 .mg-panel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(390px,92vw);padding:16px 18px 14px;display:none;z-index:5}
 .mg-panel h3{margin:0 0 4px;font-size:15px;letter-spacing:.08em;color:#E2E2E2}.mg-panel .sub{margin:0 0 8px;font-size:12px;color:#BBBAC6}
@@ -1262,7 +1262,7 @@ const CSS = `
 .mg-view{position:absolute;left:50%;top:104px;transform:translateX(-50%);padding:8px 18px;font-size:13px;font-weight:700;letter-spacing:.08em;color:#E9E9E9;opacity:0;transition:opacity .35s;pointer-events:none}
 .mg-pause{position:absolute;left:18px;bottom:18px;padding:9px 16px;font-size:12px;font-weight:700;letter-spacing:.14em;color:#E2E2E2;cursor:pointer;border:1px solid rgba(212,219,219,.25);font-family:inherit}
 .mg-pause:hover{border-color:#B7CECE}
-.mg-ov{position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(24,13,16,.62);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.mg-ov{position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(8,10,18,.38);backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%)}
 .mg-card{width:min(100%,520px);padding:34px 34px 28px;text-align:center;border-radius:22px;max-height:calc(100vh - 40px);overflow:auto}
 .mg-card h2{margin:0 0 12px;font-size:24px;letter-spacing:.1em}
 .mg-card p{margin:0 0 16px;font-size:14px;line-height:1.65;color:#D2D3DA}
