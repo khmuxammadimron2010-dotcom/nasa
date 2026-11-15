@@ -102,6 +102,8 @@ h1{
   -webkit-background-clip:text;background-clip:text;color:transparent;
   filter:drop-shadow(0 0 24px rgba(209,218,218,.3));
 }
+h1.game-title{font-size:clamp(2rem,4.6vw,2.7rem);letter-spacing:.12em}
+.credit{margin:22px 0 0;font-size:11px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
 .subtitle{margin:12px 0 0;font-size:12px;letter-spacing:.26em;text-transform:uppercase;color:var(--muted)}
 .accent{width:56px;height:2px;margin:26px auto 30px;border-radius:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent)}
 .panel h2{margin:0 0 28px;font-size:24px;font-weight:700;letter-spacing:.08em}
@@ -280,12 +282,13 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
     <div class="panel">
       <div class="emblem" aria-hidden="true"></div>
       <div class="kicker" id="eyebrow">WELCOME</div>
-      <h1>GAME</h1>
+      <h1 class="game-title">MOON<br>DISCOVERY</h1>
       <p class="subtitle" id="menuLabel">MAIN MENU</p>
       <div class="accent"></div>
       <button class="btn primary" id="startButton" type="button">START GAME</button>
       <button class="btn" id="optionsButton" type="button">OPTIONS</button>
       <button class="btn quiet" id="quitButton" type="button">QUIT GAME</button>
+      <p class="credit">Team Dombit · NASA Space Apps 2026</p>
     </div>
   </section>
 
