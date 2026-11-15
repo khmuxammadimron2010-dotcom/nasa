@@ -291,7 +291,7 @@ const T = {
     s_heal: 'Press <kbd>H</kbd> — heal to full ({c})', s_healing: 'Healing… press <kbd>H</kbd> to stop',
     s_repair: 'Press <kbd>R</kbd> — repair the rover ({c})', s_repairing: 'Repairing the rover… press <kbd>R</kbd> to stop',
     w_hit: 'Collision! Rover −{d}%', w_rv1: 'Rover badly damaged — avoid the stones, repair it at the lab.', w_rv0: 'Rover wrecked — it can only crawl. Repair it at the lab.',
-    v_first: 'FIRST-PERSON VIEW', v_third: 'THIRD-PERSON VIEW', v_lock: 'Inside the base you see through your own eyes. Go outside to change the view.',
+    v_first: 'FIRST-PERSON VIEW', v_third: 'THIRD-PERSON VIEW', v_lock: 'Inside the base you see through your own eyes. Go outside to change the view.', m_on: 'MOUSE LOOK ON — move the mouse to look around · Esc frees the mouse', m_hint: 'Click the game to look around with the mouse',
     helpTitle: 'MOON MISSION',
     help: ['W / S — walk or drive forward / back', 'A / D — turn left / right',
       'Space — jump · Shift — run · B — brake', 'E — interact (rover, rocks, lab)',
@@ -377,7 +377,7 @@ const T = {
     s_heal: '<kbd>H</kbd> bosing — to‘liq davolanish ({c})', s_healing: 'Davolanmoqda… to‘xtatish uchun <kbd>H</kbd>',
     s_repair: '<kbd>R</kbd> bosing — roverni ta’mirlash ({c})', s_repairing: 'Rover ta’mirlanmoqda… to‘xtatish uchun <kbd>R</kbd>',
     w_hit: 'To‘qnashuv! Rover −{d}%', w_rv1: 'Rover qattiq shikastlandi — toshlardan qoching, laboratoriyada ta’mirlang.', w_rv0: 'Rover ishdan chiqdi — faqat sekin yura oladi. Laboratoriyada ta’mirlang.',
-    v_first: 'BIRINCHI SHAXS KO‘RINISHI', v_third: 'UCHINCHI SHAXS KO‘RINISHI', v_lock: 'Baza ichida hammasini o‘z ko‘zingiz bilan ko‘rasiz. Ko‘rinishni o‘zgartirish uchun tashqariga chiqing.',
+    v_first: 'BIRINCHI SHAXS KO‘RINISHI', v_third: 'UCHINCHI SHAXS KO‘RINISHI', v_lock: 'Baza ichida hammasini o‘z ko‘zingiz bilan ko‘rasiz. Ko‘rinishni o‘zgartirish uchun tashqariga chiqing.', m_on: 'SICHQONCHA BILAN QARASH YOQILDI — atrofga qarash uchun sichqonchani yurgizing · Esc sichqonchani bo‘shatadi', m_hint: 'Sichqoncha bilan qarash uchun o‘yinni bosing',
     helpTitle: 'OY MISSIYASI',
     help: ['W / S — oldinga / orqaga yurish yoki haydash', 'A / D — chapga / o‘ngga burilish',
       'Space — sakrash · Shift — yugurish · B — tormoz', 'E — o‘zaro ta’sir (rover, toshlar, laboratoriya)',
@@ -447,7 +447,7 @@ const T = {
     s_heal: 'Нажмите <kbd>H</kbd> — полностью вылечиться ({c})', s_healing: 'Лечение… нажмите <kbd>H</kbd>, чтобы остановить',
     s_repair: 'Нажмите <kbd>R</kbd> — починить ровер ({c})', s_repairing: 'Ремонт ровера… нажмите <kbd>R</kbd>, чтобы остановить',
     w_hit: 'Столкновение! Ровер −{d}%', w_rv1: 'Ровер сильно повреждён — объезжайте камни, почините его в лаборатории.', w_rv0: 'Ровер разбит — он может лишь ползти. Почините его в лаборатории.',
-    v_first: 'ВИД ОТ ПЕРВОГО ЛИЦА', v_third: 'ВИД ОТ ТРЕТЬЕГО ЛИЦА', v_lock: 'Внутри базы ты смотришь своими глазами. Выйди наружу, чтобы сменить вид.',
+    v_first: 'ВИД ОТ ПЕРВОГО ЛИЦА', v_third: 'ВИД ОТ ТРЕТЬЕГО ЛИЦА', v_lock: 'Внутри базы ты смотришь своими глазами. Выйди наружу, чтобы сменить вид.', m_on: 'ОБЗОР МЫШЬЮ ВКЛЮЧЁН — двигай мышью, чтобы осмотреться · Esc освобождает мышь', m_hint: 'Нажми на игру, чтобы осматриваться мышью',
     helpTitle: 'ЛУННАЯ МИССИЯ',
     help: ['W / S — идти или ехать вперёд / назад', 'A / D — поворот влево / вправо',
       'Пробел — прыжок · Shift — бег · B — тормоз', 'E — действие (ровер, камни, лаборатория)',
@@ -2004,6 +2004,7 @@ function createGame(opts) {
   function setPause(p) {
     if (S.over || ovHelp.style.display === 'flex') return;
     S.paused = p; ovPause.style.display = p ? 'flex' : 'none';
+    if (p && locked()) document.exitPointerLock();
   }
   function exit() { const cb = opts.onExit; stop(); if (cb) cb(); }
 
@@ -2036,9 +2037,27 @@ function createGame(opts) {
   };
   const onKeyUp = e => { keys[e.code] = false; };
   let dragging = false, lx = 0, ly = 0;
-  const onDown = e => { dragging = true; lx = e.clientX; ly = e.clientY; canvas.classList.add('drag'); try { canvas.setPointerCapture(e.pointerId); } catch (er) { /* ignore */ } };
+  // ---------- mouse look like a shooter game: click the game to lock the mouse, Esc frees it
+  const locked = () => document.pointerLockElement === canvas;
+  let lockNote = false;
+  const lookBy = (dx, dy) => {
+    if (S.view === 'first') {
+      if (S.mode === 'foot') S.foot.yaw -= dx; else S.cam.yawOff = clamp(S.cam.yawOff - dx, -2.2, 2.2);
+      S.cam.fpPitch = clamp(S.cam.fpPitch - dy, -1.35, 1.35);
+    } else {
+      S.cam.yawOff -= dx; S.cam.pitchOff = clamp(S.cam.pitchOff + dy, -0.25, 0.9);
+    }
+    S.cam.idle = 0;
+  };
+  const onLockMove = e => { if (locked() && !S.paused && !S.over) lookBy((e.movementX || 0) * 0.0024, (e.movementY || 0) * 0.0022); };
+  const onLockChange = () => { if (locked() && !lockNote) { lockNote = true; flash(tr('m_on')); } if (!locked()) lockNote = false; };
+  document.addEventListener('mousemove', onLockMove); document.addEventListener('pointerlockchange', onLockChange);
+  const onDown = e => {
+    if (!locked() && !S.paused && !S.over && e.button === 0 && canvas.requestPointerLock) { try { const pr2 = canvas.requestPointerLock(); if (pr2 && pr2.catch) pr2.catch(() => {}); } catch (er) { /* not allowed here */ } }
+    if (locked()) return;
+    dragging = true; lx = e.clientX; ly = e.clientY; canvas.classList.add('drag'); try { canvas.setPointerCapture(e.pointerId); } catch (er) { /* ignore */ } };
   const onMove = e => {
-    if (!dragging) return;
+    if (!dragging || locked()) return;
     if (S.view === 'first') {
       const dx = (e.clientX - lx) * 0.006;
       if (S.mode === 'foot') S.foot.yaw -= dx; else S.cam.yawOff = clamp(S.cam.yawOff - dx, -2.2, 2.2);
@@ -3000,6 +3019,7 @@ function createGame(opts) {
   const pad2 = n => String(n).padStart(2, '0');
   const towerPct = () => clamp((S.tower.prog + (S.action && S.action.type === 'repair' ? S.action.t : 0)) / TOWER_WORK * 100, 0, 100);
   function updateHud() {
+    if (locked() && (S.paused || S.over || mapOpen || S.panel || ovHelp.style.display === 'flex' || ovNasa.style.display === 'flex')) document.exitPointerLock();
     const vals = { health: S.hp, oxygen: S.o2, tank: S.tank, energy: S.en, rover: S.rv, radiation: S.rad };
     BARS.forEach(([k]) => {
       const v = vals[k], b = bar[k];
@@ -3221,6 +3241,7 @@ function createGame(opts) {
     destroy() {
       destroyed = true; cancelAnimationFrame(raf); stopSpeech(); liveSubs.delete(onLive); clearInterval(liveIv);
       window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp);
+      document.removeEventListener('mousemove', onLockMove); document.removeEventListener('pointerlockchange', onLockChange); if (locked()) document.exitPointerLock();
       window.removeEventListener('resize', onResize); window.removeEventListener('blur', onBlur);
       for (const [, c] of chunks) removeChunk(c); chunks.clear();
       scene.traverse(o => { if (o.geometry) o.geometry.dispose(); });
